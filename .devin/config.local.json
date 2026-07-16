@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Exec(ls)",
+      "Exec(dir)",
+      "Exec(Get-ChildItem)",
+      "Exec(cd)",
+      "Exec(npx prisma)",
+      "Exec(npm run)",
+      "Exec(npm install)",
+      "Exec(node)",
+      "Exec(npx)",
+      "Exec(psql)",
+      "Exec(npm add)",
+      "Exec(npm list)",
+      "Exec(Test-NetConnection)",
+      "Exec(del)",
+      "Exec(Remove-Item)"
+    ]
+  }
+}
