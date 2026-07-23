@@ -1,3 +1,7 @@
+// OpenTelemetry MUST be initialized before any other imports
+import { initTracer } from "@repo/observability";
+initTracer("genvora-worker");
+
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { TASK_QUEUES } from "@repo/shared-types";
 import { validateEnv } from "./env.validation";

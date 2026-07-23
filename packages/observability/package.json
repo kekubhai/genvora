@@ -1,0 +1,28 @@
+{
+  "name": "@repo/observability",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.56.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.201.0",
+    "@opentelemetry/sdk-node": "^0.201.0",
+    "@opentelemetry/semantic-conventions": "^1.30.0",
+    "@prisma/instrumentation": "^6.8.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

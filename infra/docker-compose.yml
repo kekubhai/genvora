@@ -59,6 +59,29 @@ services:
       timeout: 5s
       retries: 10
 
+  # SigNoz - Observability (traces, metrics, logs)
+  # Standalone image bundles ClickHouse + OTel Collector + SigNoz UI
+  signoz:
+    image: signoz/signoz-standalone:latest
+    container_name: genvora-signoz
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "3333:8080"   # SigNoz UI (remapped to 3333 to avoid conflicts)
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+    volumes:
+      - signoz_clickhouse:/var/lib/clickhouse
+      - signoz_data:/var/lib/signoz
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
 volumes:
   postgres_data:
   redis_data:
+  signoz_clickhouse:
+  signoz_data:
