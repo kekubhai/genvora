@@ -1,0 +1,198 @@
+{
+  "dashboard": {
+    "id": "genvora-audit-pipeline",
+    "version": 1,
+    "title": "Genvora — AI Audit Pipeline",
+    "description": "7-panel overview of the Genvora Temporal audit pipeline: scan volume, scores, latency, bot vs browser, errors, recommendations, and crawlability blockers.",
+    "tags": ["genvora", "audit", "temporal"],
+    "variables": [
+      {
+        "name": "service_name",
+        "displayName": "Service",
+        "type": "SERVICE_NAME",
+        "sort": "ASC",
+        "show": "always",
+        "selected": "genvora-worker"
+      }
+    ],
+    "panels": [
+      {
+        "id": "panel-scan-volume",
+        "title": "Scan Volume",
+        "description": "Number of audit scans initiated per 5-minute window",
+        "type": "TIME_SERIES",
+        "query": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, count() AS scan_count FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.fetch_page' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts ORDER BY ts",
+            "legend": "Scans / 5min",
+            "disabled": false
+          }
+        },
+        "timePredefined": true,
+        "panelData": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, count() AS scan_count FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.fetch_page' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts ORDER BY ts",
+            "legend": "Scans / 5min",
+            "disabled": false
+          }
+        },
+        "isNew": false
+      },
+      {
+        "id": "panel-score-trends",
+        "title": "Score Trends",
+        "description": "Average, min, and max AI readiness score over time",
+        "type": "TIME_SERIES",
+        "query": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, avg(toFloat64OrZero(tag_string_values[indexOf(tag_string_keys, 'score.overall')])) AS avg_score, min(toFloat64OrZero(tag_string_values[indexOf(tag_string_keys, 'score.overall')])) AS min_score, max(toFloat64OrZero(tag_string_values[indexOf(tag_string_keys, 'score.overall')])) AS max_score FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.score' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts ORDER BY ts",
+            "legend": "avg={{avg_score}} min={{min_score}} max={{max_score}}",
+            "disabled": false
+          }
+        },
+        "timePredefined": true,
+        "panelData": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, avg(toFloat64OrZero(tag_string_values[indexOf(tag_string_keys, 'score.overall')])) AS avg_score, min(toFloat64OrZero(tag_string_values[indexOf(tag_string_keys, 'score.overall')])) AS min_score, max(toFloat64OrZero(tag_string_values[indexOf(tag_string_keys, 'score.overall')])) AS max_score FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.score' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts ORDER BY ts",
+            "legend": "avg={{avg_score}} min={{min_score}} max={{max_score}}",
+            "disabled": false
+          }
+        },
+        "isNew": false
+      },
+      {
+        "id": "panel-activity-latency",
+        "title": "Activity Latency Breakdown",
+        "description": "p50 / p95 / p99 duration (ms) for each audit activity",
+        "type": "TIME_SERIES",
+        "query": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, operation_name, quantile(0.5)(duration / 1000000) AS p50_ms, quantile(0.95)(duration / 1000000) AS p95_ms, quantile(0.99)(duration / 1000000) AS p99_ms FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name LIKE 'activity.%' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts, operation_name ORDER BY ts, operation_name",
+            "legend": "{{operation_name}} p95={{p95_ms}}ms",
+            "disabled": false
+          }
+        },
+        "timePredefined": true,
+        "panelData": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, operation_name, quantile(0.5)(duration / 1000000) AS p50_ms, quantile(0.95)(duration / 1000000) AS p95_ms, quantile(0.99)(duration / 1000000) AS p99_ms FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name LIKE 'activity.%' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts, operation_name ORDER BY ts, operation_name",
+            "legend": "{{operation_name}} p95={{p95_ms}}ms",
+            "disabled": false
+          }
+        },
+        "isNew": false
+      },
+      {
+        "id": "panel-bot-vs-browser",
+        "title": "GPTBot vs Browser Latency",
+        "description": "Average fetch_page duration by user agent — AI bots vs standard browsers",
+        "type": "TIME_SERIES",
+        "query": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, tag_string_values[indexOf(tag_string_keys, 'user_agent.selected')] AS user_agent, avg(duration / 1000000) AS avg_latency_ms, count() AS fetch_count FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.fetch_page' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts, user_agent ORDER BY ts",
+            "legend": "{{user_agent}} avg={{avg_latency_ms}}ms",
+            "disabled": false
+          }
+        },
+        "timePredefined": true,
+        "panelData": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, tag_string_values[indexOf(tag_string_keys, 'user_agent.selected')] AS user_agent, avg(duration / 1000000) AS avg_latency_ms, count() AS fetch_count FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.fetch_page' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts, user_agent ORDER BY ts",
+            "legend": "{{user_agent}} avg={{avg_latency_ms}}ms",
+            "disabled": false
+          }
+        },
+        "isNew": false
+      },
+      {
+        "id": "panel-error-rates",
+        "title": "Error Rate",
+        "description": "Number of spans with ERROR status over time — failures across all activities",
+        "type": "TIME_SERIES",
+        "query": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, operation_name, countIf(status_code = 'ERROR') AS error_count, count() AS total_count, round(countIf(status_code = 'ERROR') * 100.0 / greatest(count(), 1), 1) AS error_rate_pct FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name LIKE 'activity.%' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts, operation_name ORDER BY ts, error_count DESC",
+            "legend": "{{operation_name}} errors={{error_count}}",
+            "disabled": false
+          }
+        },
+        "timePredefined": true,
+        "panelData": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, operation_name, countIf(status_code = 'ERROR') AS error_count, count() AS total_count, round(countIf(status_code = 'ERROR') * 100.0 / greatest(count(), 1), 1) AS error_rate_pct FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name LIKE 'activity.%' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts, operation_name ORDER BY ts, error_count DESC",
+            "legend": "{{operation_name}} errors={{error_count}}",
+            "disabled": false
+          }
+        },
+        "isNew": false
+      },
+      {
+        "id": "panel-recommendation-severity",
+        "title": "Recommendation Severity",
+        "description": "Distribution of recommendation severities — critical / warning / info counts",
+        "type": "TIME_SERIES",
+        "query": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, sum(toInt32OrZero(tag_string_values[indexOf(tag_string_keys, 'recommendations.critical')])) AS critical, sum(toInt32OrZero(tag_string_values[indexOf(tag_string_keys, 'recommendations.warning')])) AS warning, sum(toInt32OrZero(tag_string_values[indexOf(tag_string_keys, 'recommendations.info')])) AS info FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.generate_recommendations' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts ORDER BY ts",
+            "legend": "critical={{critical}} warning={{warning}} info={{info}}",
+            "disabled": false
+          }
+        },
+        "timePredefined": true,
+        "panelData": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT toStartOfInterval(toDateTime64(start_time / 1000000000, 3), INTERVAL 5 MINUTE) AS ts, sum(toInt32OrZero(tag_string_values[indexOf(tag_string_keys, 'recommendations.critical')])) AS critical, sum(toInt32OrZero(tag_string_values[indexOf(tag_string_keys, 'recommendations.warning')])) AS warning, sum(toInt32OrZero(tag_string_values[indexOf(tag_string_keys, 'recommendations.info')])) AS info FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.generate_recommendations' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR) GROUP BY ts ORDER BY ts",
+            "legend": "critical={{critical}} warning={{warning}} info={{info}}",
+            "disabled": false
+          }
+        },
+        "isNew": false
+      },
+      {
+        "id": "panel-crawlability-blockers",
+        "title": "Crawlability Blockers",
+        "description": "Count of scans with each crawlability issue — robots.txt blocks, missing llms.txt, JS rendering required",
+        "type": "TABLE",
+        "query": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT countIf(tag_string_values[indexOf(tag_string_keys, 'robots_txt.allows_ai')] = '0') AS ai_bots_blocked, countIf(tag_string_values[indexOf(tag_string_keys, 'llms_txt.present')] = '0') AS missing_llms_txt, countIf(tag_string_values[indexOf(tag_string_keys, 'js_rendering.required')] = '1') AS requires_js_rendering, count() AS total_scans, round(countIf(tag_string_values[indexOf(tag_string_keys, 'robots_txt.allows_ai')] = '0') * 100.0 / greatest(count(), 1), 1) AS blocked_pct FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.check_crawlability' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR)",
+            "disabled": false
+          }
+        },
+        "timePredefined": true,
+        "panelData": {
+          "queryType": "clickhouse",
+          "clickhouse": {
+            "query": "SELECT countIf(tag_string_values[indexOf(tag_string_keys, 'robots_txt.allows_ai')] = '0') AS ai_bots_blocked, countIf(tag_string_values[indexOf(tag_string_keys, 'llms_txt.present')] = '0') AS missing_llms_txt, countIf(tag_string_values[indexOf(tag_string_keys, 'js_rendering.required')] = '1') AS requires_js_rendering, count() AS total_scans, round(countIf(tag_string_values[indexOf(tag_string_keys, 'robots_txt.allows_ai')] = '0') * 100.0 / greatest(count(), 1), 1) AS blocked_pct FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.check_crawlability' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 24 HOUR)",
+            "disabled": false
+          }
+        },
+        "isNew": false
+      }
+    ],
+    "layout": [
+      { "h": 6, "i": "panel-scan-volume", "w": 6, "x": 0, "y": 0, "minH": 3, "minW": 3 },
+      { "h": 6, "i": "panel-score-trends", "w": 6, "x": 6, "y": 0, "minH": 3, "minW": 3 },
+      { "h": 6, "i": "panel-activity-latency", "w": 12, "x": 0, "y": 6, "minH": 3, "minW": 3 },
+      { "h": 6, "i": "panel-bot-vs-browser", "w": 6, "x": 0, "y": 12, "minH": 3, "minW": 3 },
+      { "h": 6, "i": "panel-error-rates", "w": 6, "x": 6, "y": 12, "minH": 3, "minW": 3 },
+      { "h": 6, "i": "panel-recommendation-severity", "w": 6, "x": 0, "y": 18, "minH": 3, "minW": 3 },
+      { "h": 6, "i": "panel-crawlability-blockers", "w": 6, "x": 6, "y": 18, "minH": 3, "minW": 3 }
+    ],
+    "timePredefined": true,
+    "selectedTime": "30min"
+  }
+}

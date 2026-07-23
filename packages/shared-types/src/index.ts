@@ -140,3 +140,28 @@ export interface ScoringResult {
   categoryScores: Record<CategoryType, number>;
   details: Record<CategoryType, unknown>;
 }
+
+// =============================================================================
+// LLM Task Completion types
+// =============================================================================
+
+export interface LLMSummaryInput {
+  url: string;
+  overallScore: number;
+  categoryScores: Record<string, number>;
+  recommendations: Recommendation[];
+  structure: StructureAnalysis;
+  crawlability: CrawlabilityAnalysis;
+  accessibility: AccessibilityAnalysis;
+  semantic: SemanticAnalysis;
+  structuredData: StructuredDataAnalysis;
+}
+
+export interface LLMSummaryResult {
+  executiveSummary: string;
+  keyFindings: string[];
+  priorityActions: string[];
+  estimatedImpact: string;
+  tokensUsed: number;
+  model: string;
+}

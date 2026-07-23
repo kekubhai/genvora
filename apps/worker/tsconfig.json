@@ -18,6 +18,7 @@
     "resolveJsonModule": true,
     "paths": {
       "@repo/db": ["../../packages/db"],
+      "@repo/llm-client": ["../../packages/llm-client/dist"],
       "@repo/shared-types": ["../../packages/shared-types"],
       "@repo/scoring-engine": ["../../packages/scoring-engine"],
       "@repo/observability": ["../../packages/observability/dist"]

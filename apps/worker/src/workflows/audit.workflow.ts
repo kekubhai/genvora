@@ -13,6 +13,7 @@ import type {
   StructuredDataAnalysis,
   ScoringResult,
   Recommendation,
+  LLMSummaryResult,
 } from "@repo/shared-types";
 
 // Signal definitions
@@ -51,10 +52,21 @@ interface AuditActivities {
     structuredData: StructuredDataAnalysis
   ): Promise<Recommendation[]>;
   storeSnapshotActivity(scanId: string, rawHtml: string, screenshot: Uint8Array): Promise<{ rawHtmlUrl: string; screenshotUrl: string }>;
+  llmSummarizeActivity(input: {
+    url: string;
+    overallScore: number;
+    categoryScores: Record<string, number>;
+    recommendations: Recommendation[];
+    structure: StructureAnalysis;
+    crawlability: CrawlabilityAnalysis;
+    accessibility: AccessibilityAnalysis;
+    semantic: SemanticAnalysis;
+    structuredData: StructuredDataAnalysis;
+  }): Promise<LLMSummaryResult>;
 }
 
 // Create activity proxy with timeout options
-const { fetchPageActivity, parseStructureActivity, checkCrawlabilityActivity, analyzeAccessibilityActivity, analyzeSemanticActivity, analyzeStructuredDataActivity, scoreActivity, generateRecommendationsActivity, storeSnapshotActivity } =
+const { fetchPageActivity, parseStructureActivity, checkCrawlabilityActivity, analyzeAccessibilityActivity, analyzeSemanticActivity, analyzeStructuredDataActivity, scoreActivity, generateRecommendationsActivity, storeSnapshotActivity, llmSummarizeActivity } =
   proxyActivities<AuditActivities>({
     startToCloseTimeout: "5 minutes",
   });
@@ -73,12 +85,21 @@ const { fetchPageActivity, parseStructureActivity, checkCrawlabilityActivity, an
  * 7. scoreActivity — Calculates scores using deterministic rubric
  * 8. generateRecommendationsActivity — Generates fix recommendations
  * 9. storeSnapshotActivity — Stores HTML and screenshot in Supabase
+ * 10. llmSummarizeActivity — LLM-powered audit summary with agent observability
  */
 export async function AuditWorkflow(input: AuditWorkflowInput): Promise<{
   scanId: string;
   overallScore: number;
   categoryScores: Record<string, number>;
   recommendations: Recommendation[];
+  llmSummary: {
+    executiveSummary: string;
+    keyFindings: string[];
+    priorityActions: string[];
+    estimatedImpact: string;
+    tokensUsed: number;
+    model: string;
+  };
 }> {
   let currentStatus = "running";
   let cancelled = false;
@@ -143,6 +164,19 @@ export async function AuditWorkflow(input: AuditWorkflowInput): Promise<{
   // Activity 9: Store snapshots
   await storeSnapshotActivity(scanId, pageFetchResult.rawHtml, pageFetchResult.screenshot);
 
+  // Activity 10: LLM-powered audit summary (agent observability)
+  const llmSummary = await llmSummarizeActivity({
+    url,
+    overallScore: scoringResult.overallScore,
+    categoryScores: scoringResult.categoryScores,
+    recommendations,
+    structure: structureAnalysis,
+    crawlability: crawlabilityAnalysis,
+    accessibility: accessibilityAnalysis,
+    semantic: semanticAnalysis,
+    structuredData: structuredDataAnalysis,
+  });
+
   // Update status to reflect completion
   currentStatus = "completed";
 
@@ -154,5 +188,13 @@ export async function AuditWorkflow(input: AuditWorkflowInput): Promise<{
       ...rec,
       scanId,
     })),
+    llmSummary: {
+      executiveSummary: llmSummary.executiveSummary,
+      keyFindings: llmSummary.keyFindings,
+      priorityActions: llmSummary.priorityActions,
+      estimatedImpact: llmSummary.estimatedImpact,
+      tokensUsed: llmSummary.tokensUsed,
+      model: llmSummary.model,
+    },
   };
 }

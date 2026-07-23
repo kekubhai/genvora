@@ -6,6 +6,7 @@ import { NativeConnection, Worker } from "@temporalio/worker";
 import { TASK_QUEUES } from "@repo/shared-types";
 import { validateEnv } from "./env.validation";
 import * as activities from "./activities/audit.activities";
+import { llmSummarizeActivity } from "./activities/llm.activities";
 
 async function main() {
   // Validate required env vars — exit with non-zero if missing
@@ -48,6 +49,7 @@ async function main() {
       scoreActivity: activities.scoreActivity,
       generateRecommendationsActivity: activities.generateRecommendationsActivity,
       storeSnapshotActivity: activities.storeSnapshotActivity,
+      llmSummarizeActivity,
     },
   });
 

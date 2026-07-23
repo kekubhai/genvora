@@ -1,0 +1,76 @@
+{
+  "alerts": [
+    {
+      "id": "genvora-scan-error-rate",
+      "alertName": "Genvora: High Scan Error Rate",
+      "alertType": "METRIC_BASED_ALERT",
+      "description": "Fires when more than 3 activity spans fail in a 5-minute window across the genvora-worker service.",
+      "ruleType": "THRESHOLD",
+      "severity": "critical",
+      "disabled": false,
+      "labels": {
+        "service": "genvora-worker",
+        "team": "genvora"
+      },
+      "annotations": {
+        "summary": "High error rate in genvora audit pipeline",
+        "description": "{{ $labels.operation_name }} has {{ $value }} errors in the last 5 minutes. Check the SigNoz traces tab for failure details.",
+        "runbook_url": "https://github.com/your-org/genvora/wiki/runbook-scan-errors"
+      },
+      "query": {
+        "queryType": "clickhouse",
+        "clickhouse": {
+          "query": "SELECT countIf(status_code = 'ERROR') AS error_count FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name LIKE 'activity.%' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 5 MINUTE) HAVING error_count > 3",
+          "legend": "errors={{error_count}}"
+        }
+      },
+      "condition": {
+        "op": ">",
+        "target": 3
+      },
+      "evalWindow": "5m",
+      "frequency": "1m",
+      "ruleConfiguration": {
+        "threshold": 3,
+        "matchType": "atleast_once",
+        "alertOnMissingData": false
+      }
+    },
+    {
+      "id": "genvora-slow-fetch",
+      "alertName": "Genvora: Slow Page Fetch (p95 > 30s)",
+      "alertType": "METRIC_BASED_ALERT",
+      "description": "Fires when the p95 latency of fetch_page activity exceeds 30 seconds, indicating target sites are slow to respond or Playwright is hanging.",
+      "ruleType": "THRESHOLD",
+      "severity": "warning",
+      "disabled": false,
+      "labels": {
+        "service": "genvora-worker",
+        "team": "genvora"
+      },
+      "annotations": {
+        "summary": "Page fetch activity is slow",
+        "description": "fetch_page p95 latency is {{ $value }}ms (threshold: 30000ms). This may indicate slow target sites or Playwright resource issues.",
+        "runbook_url": "https://github.com/your-org/genvora/wiki/runbook-slow-fetch"
+      },
+      "query": {
+        "queryType": "clickhouse",
+        "clickhouse": {
+          "query": "SELECT quantile(0.95)(duration / 1000000) AS p95_ms FROM signoz_traces.distributed_span_list WHERE service_name = 'genvora-worker' AND operation_name = 'activity.fetch_page' AND start_time >= toUnixTimestamp64Nano(now() - INTERVAL 10 MINUTE) HAVING p95_ms > 30000",
+          "legend": "p95={{p95_ms}}ms"
+        }
+      },
+      "condition": {
+        "op": ">",
+        "target": 30000
+      },
+      "evalWindow": "10m",
+      "frequency": "2m",
+      "ruleConfiguration": {
+        "threshold": 30000,
+        "matchType": "atleast_once",
+        "alertOnMissingData": false
+      }
+    }
+  ]
+}
