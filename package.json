@@ -15,6 +15,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
+    "db:seed": "cd packages/db && npm run db:seed",
     "workers:dev": "cd workers && npm run dev",
     "workers:deploy": "cd workers && npm run deploy"
   },

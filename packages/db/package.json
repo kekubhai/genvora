@@ -12,6 +12,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -21,6 +22,10 @@
   },
   "devDependencies": {
     "prisma": "^5.17.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.5.4"
+  },
+  "prisma": {
+    "seed": "node ../../node_modules/tsx/dist/cli.mjs prisma/seed.ts"
   }
 }
