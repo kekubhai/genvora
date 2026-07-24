@@ -1,0 +1,29 @@
+name = "genvora-api"
+main = "src/worker.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Stub optional NestJS packages that aren't used on Workers
+[alias]
+"class-validator" = "./stubs/empty.js"
+"class-transformer" = "./stubs/empty.js"
+"@nestjs/websockets" = "./stubs/empty.js"
+"@nestjs/websockets/socket-module" = "./stubs/empty.js"
+"@nestjs/microservices" = "./stubs/empty.js"
+"@nestjs/microservices/microservices-module" = "./stubs/empty.js"
+
+# Uncomment and set via: wrangler secret put <NAME>
+# wrangler secret put DATABASE_URL
+# wrangler secret put DIRECT_DATABASE_URL
+# wrangler secret put BETTER_AUTH_SECRET
+# wrangler secret put SUPABASE_URL
+# wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+
+[vars]
+ENVIRONMENT = "production"
+FRONTEND_URL = "https://genvora.pages.dev"
+API_BASE_URL = "https://genvora-api.anirbanghosh060.workers.dev"
+
+[env.staging]
+name = "genvora-api-staging"
+vars = { ENVIRONMENT = "staging", FRONTEND_URL = "https://staging.genvora.pages.dev", API_BASE_URL = "https://genvora-api-staging.anirbanghosh060.workers.dev" }

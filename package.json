@@ -4,8 +4,7 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*",
-    "workers"
+    "packages/*"
   ],
   "scripts": {
     "build": "turbo run build",
@@ -16,8 +15,12 @@
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
     "db:seed": "cd packages/db && npm run db:seed",
-    "workers:dev": "cd workers && npm run dev",
-    "workers:deploy": "cd workers && npm run deploy"
+    "cf:deploy:api": "cd apps/api && npm run cf:deploy",
+    "cf:deploy:web": "cd apps/web && npm run cf:deploy",
+    "cf:deploy:api:staging": "cd apps/api && npm run cf:deploy:staging",
+    "cf:deploy:web:staging": "cd apps/web && npm run cf:deploy:staging",
+    "cf:dev:api": "cd apps/api && npm run cf:dev",
+    "cf:dev:web": "cd apps/web && npm run cf:dev"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

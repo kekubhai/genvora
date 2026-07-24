@@ -1,6 +1,7 @@
 /**
  * Validates that all required environment variables are present and non-empty.
- * Logs the first missing variable to stderr and exits with code 1 if any are absent.
+ * On Node.js, logs the first missing variable to stderr and exits with code 1.
+ * On Cloudflare Workers, throws an error.
  */
 
 const REQUIRED_API_ENV_VARS = [
@@ -19,6 +20,14 @@ export function validateEnv(): void {
   }
 
   if (missing.length > 0) {
+    const isWorkers = typeof globalThis?.navigator !== "undefined";
+
+    if (isWorkers) {
+      throw new Error(
+        `Missing required environment variables: ${missing.join(", ")}`,
+      );
+    }
+
     for (const key of missing) {
       process.stderr.write(
         JSON.stringify({

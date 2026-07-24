@@ -23,11 +23,11 @@
     "db:migrate": {
       "cache": false
     },
-    "workers:dev": {
+    "cf:dev": {
       "cache": false,
       "persistent": true
     },
-    "workers:deploy": {
+    "cf:deploy": {
       "cache": false
     }
   }

@@ -1,6 +1,0 @@
-{
-  "rootDirectory": "apps/web",
-  "framework": "nextjs",
-  "buildCommand": "cd ../.. && npm run build --workspace=@repo/web",
-  "installCommand": "cd ../.. && npm install"
-}

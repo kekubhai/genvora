@@ -1,10 +1,8 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
-import Redis from "ioredis";
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
-  private client: Redis | null = null;
   private _isHealthy = false;
 
   get isHealthy(): boolean {
@@ -12,13 +10,15 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
+    // Redis is not available on Cloudflare Workers.
+    // On Node.js (local dev / Docker), connect if REDIS_URL is set.
     const redisUrl = process.env["REDIS_URL"];
 
-    if (!redisUrl) {
+    if (!redisUrl || typeof globalThis?.navigator !== "undefined") {
       this.logger.warn(
         JSON.stringify({
           level: "warn",
-          message: "REDIS_URL is not set — Redis running in degraded mode",
+          message: "Redis unavailable — running in degraded mode",
           timestamp: new Date().toISOString(),
         }),
       );
@@ -26,13 +26,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      this.client = new Redis(redisUrl, {
+      const ioredis = await import("ioredis");
+      const RedisConstructor = (ioredis as any).default ?? ioredis;
+      const client = new RedisConstructor(redisUrl, {
         maxRetriesPerRequest: null,
         lazyConnect: true,
       });
 
-      // Register error handler before connect so errors don't throw unhandled rejections
-      this.client.on("error", (err: Error) => {
+      client.on("error", (err: Error) => {
         this._isHealthy = false;
         this.logger.warn(
           JSON.stringify({
@@ -44,16 +45,15 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         );
       });
 
-      await this.client.connect();
+      await client.connect();
       this._isHealthy = true;
       this.logger.log("Connected to Redis");
     } catch (err) {
       this._isHealthy = false;
-      // Redis is not a hard dependency — log warning and continue in degraded mode
       this.logger.warn(
         JSON.stringify({
           level: "warn",
-          message: "Failed to connect to Redis — API running in degraded mode",
+          message: "Failed to connect to Redis — running in degraded mode",
           error: err instanceof Error ? err.message : String(err),
           timestamp: new Date().toISOString(),
         }),
@@ -62,12 +62,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (this.client) {
-      await this.client.quit();
-    }
-  }
-
-  getClient(): Redis | null {
-    return this.client;
+    // No-op on Cloudflare Workers
   }
 }

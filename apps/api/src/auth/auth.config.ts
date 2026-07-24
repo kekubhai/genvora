@@ -1,8 +1,28 @@
-import { PrismaClient } from "@prisma/client";
-
 // PrismaClient singleton for Better Auth adapter
 // (separate from the NestJS-injected PrismaService to avoid circular deps)
-const prismaForAuth = new PrismaClient();
+let prismaForAuth: any = null;
+
+async function getPrismaForAuth() {
+  if (prismaForAuth) return prismaForAuth;
+
+  const isWorkers = typeof globalThis?.navigator !== "undefined";
+
+  if (isWorkers) {
+    const { PrismaClient } = await import("@prisma/client");
+    const { PrismaPg } = await import("@prisma/adapter-pg");
+    const { Pool } = await import("pg");
+    const pool = new Pool({
+      connectionString: process.env["DATABASE_URL"] ?? "",
+    });
+    const adapter = new PrismaPg(pool);
+    prismaForAuth = new PrismaClient({ adapter: adapter as any });
+  } else {
+    const { PrismaClient } = await import("@prisma/client");
+    prismaForAuth = new PrismaClient();
+  }
+
+  return prismaForAuth;
+}
 
 export async function createAuth() {
   // Dynamic imports for ESM-only packages (better-auth is ESM-only)
@@ -17,10 +37,17 @@ export async function createAuth() {
   const secret = process.env["BETTER_AUTH_SECRET"];
 
   if (!secret || secret.trim() === "") {
+    const isWorkers = typeof globalThis?.navigator !== "undefined";
+    const msg = "Missing required environment variable: BETTER_AUTH_SECRET";
+
+    if (isWorkers) {
+      throw new Error(msg);
+    }
+
     process.stderr.write(
       JSON.stringify({
         level: "error",
-        message: "Missing required environment variable: BETTER_AUTH_SECRET",
+        message: msg,
         variable: "BETTER_AUTH_SECRET",
         timestamp: new Date().toISOString(),
       }) + "\n",
@@ -28,21 +55,17 @@ export async function createAuth() {
     process.exit(1);
   }
 
+  const client = await getPrismaForAuth();
+
   return betterAuth({
     secret,
-    database: prismaAdapter(prismaForAuth, {
+    database: prismaAdapter(client, {
       provider: "postgresql",
     }),
     baseURL: process.env["API_BASE_URL"] ?? "http://localhost:3001",
     basePath: "/auth",
     emailAndPassword: {
       enabled: true,
-    },
-    socialProviders: {
-      google: {
-        clientId: process.env["GOOGLE_CLIENT_ID"] ?? "",
-        clientSecret: process.env["GOOGLE_CLIENT_SECRET"] ?? "",
-      },
     },
     plugins: [
       organization({
