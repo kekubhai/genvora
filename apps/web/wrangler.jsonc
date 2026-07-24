@@ -24,7 +24,7 @@
     "binding": "IMAGES"
   },
   "vars": {
-    "NEXT_PUBLIC_API_URL": "https://genvora-api.workers.dev",
+    "NEXT_PUBLIC_API_URL": "https://genvora-api.anirbanghosh060.workers.dev",
     "NEXT_PUBLIC_SUPABASE_URL": "",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": ""
   },
@@ -32,7 +32,7 @@
     "staging": {
       "name": "genvora-web-staging",
       "vars": {
-        "NEXT_PUBLIC_API_URL": "https://genvora-api-staging.workers.dev",
+        "NEXT_PUBLIC_API_URL": "https://genvora-api-staging.anirbanghosh060.workers.dev",
         "NEXT_PUBLIC_SUPABASE_URL": "",
         "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": ""
       }

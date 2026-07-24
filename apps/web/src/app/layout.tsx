@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Genvora",
-  description: "AI-powered platform",
+  description: "AI visibility audits for teams shipping modern websites.",
 };
 
 export default function RootLayout({
@@ -17,7 +17,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${inter.className} antialiased`}>
         <PostHogProvider>
           {children}
         </PostHogProvider>

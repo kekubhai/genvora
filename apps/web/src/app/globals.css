@@ -3,18 +3,20 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #f7f8fa;
+  --foreground: #16181d;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: #c7ece2;
+  color: #101418;
 }

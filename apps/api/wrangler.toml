@@ -21,7 +21,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
-FRONTEND_URL = "https://genvora.pages.dev"
+FRONTEND_URL = "https://genvora-web.anirbanghosh060.workers.dev,https://genvora.pages.dev"
 API_BASE_URL = "https://genvora-api.anirbanghosh060.workers.dev"
 
 [env.staging]

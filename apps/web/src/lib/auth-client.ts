@@ -1,14 +1,13 @@
 import { createAuthClient } from "better-auth/react";
 import { organizationClient } from "better-auth/client/plugins";
+import { API_URL } from "./api";
 
-const apiUrl = process.env["NEXT_PUBLIC_API_URL"];
-
-if (!apiUrl && typeof window !== "undefined") {
+if (!process.env["NEXT_PUBLIC_API_URL"] && typeof window !== "undefined") {
   console.warn("NEXT_PUBLIC_API_URL is not set — auth requests may fail");
 }
 
 export const authClient = createAuthClient({
-  baseURL: apiUrl ?? "http://localhost:3001",
+  baseURL: API_URL,
   plugins: [organizationClient()],
 });
 

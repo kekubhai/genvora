@@ -73,10 +73,11 @@ export async function createAuth() {
         invitationExpiresIn: 60 * 60 * 24 * 7,
       }),
     ],
-    // Trusted origins for CORS
-    trustedOrigins: [
-      process.env["FRONTEND_URL"] ?? "http://localhost:3000",
-    ],
+    // Trusted origins for CORS — supports a comma-separated FRONTEND_URL list
+    trustedOrigins: (process.env["FRONTEND_URL"] ?? "http://localhost:3000")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0),
   });
 }
 

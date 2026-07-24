@@ -3,6 +3,7 @@ import type { ExecutionContext } from "@cloudflare/workers-types";
 
 let adapter: any = null;
 let app: any = null;
+let auth: any = null;
 
 export interface Env {
   DATABASE_URL: string;
@@ -33,6 +34,31 @@ function applyEnv(env: Env) {
   process.env["DIRECT_DATABASE_URL"] ??= process.env["DATABASE_URL"];
 }
 
+function getAllowedOrigins(env: Env): string[] {
+  return (env.FRONTEND_URL ?? "http://localhost:3000")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
+function corsHeaders(request: Request, env: Env): Record<string, string> {
+  const origin = request.headers.get("Origin") ?? "";
+  const allowed = getAllowedOrigins(env);
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    "Access-Control-Allow-Headers":
+      request.headers.get("Access-Control-Request-Headers") ?? "Content-Type, Authorization",
+    "Access-Control-Allow-Credentials": "true",
+    Vary: "Origin",
+  };
+
+  if (origin && allowed.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+
+  return headers;
+}
+
 async function getApplication(env: Env) {
   if (!app) {
     applyEnv(env);
@@ -56,8 +82,52 @@ async function getApplication(env: Env) {
   return app;
 }
 
+async function getAuth(env: Env) {
+  if (!auth) {
+    applyEnv(env);
+
+    const { createAuth } = await import("./auth/auth.config.js");
+    auth = await createAuth();
+  }
+
+  return auth;
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/health") {
+      return Response.json({
+        status: "ok",
+        environment: env.ENVIRONMENT ?? "production",
+      });
+    }
+
+    if (url.pathname === "/auth" || url.pathname.startsWith("/auth/")) {
+      const cors = corsHeaders(request, env);
+
+      // Handle CORS preflight requests before hitting Better Auth
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: cors });
+      }
+
+      const authInstance = await getAuth(env);
+      const response: Response = await authInstance.handler(request);
+
+      // Ensure CORS headers are present on the auth response
+      const headers = new Headers(response.headers);
+      for (const [key, value] of Object.entries(cors)) {
+        headers.set(key, value);
+      }
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    }
+
     await getApplication(env);
     return adapter.handle(request);
   },
