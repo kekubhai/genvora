@@ -11,7 +11,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: agentlens
     ports:
-      - "5432:5432"
+      # Host 5433 avoids clash with other local Postgres containers on 5432
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -37,51 +38,33 @@ services:
 
   # Temporal Server - Local workflow orchestration
   temporal:
-    image: temporalio/auto-setup:latest
+    image: temporalio/auto-setup:1.25.2
     container_name: agentlens-temporal
     restart: unless-stopped
     environment:
-      - DB=postgresql
+      # Valid drivers: mysql8 | postgres12 | postgres12_pgx | cassandra
+      - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PWD=postgres
       - POSTGRES_SEEDS=postgres
-      - POSTGRES_DB=temporal
     ports:
       - "7233:7233"  # Temporal frontend
-      - "8233:8233"  # Temporal UI
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "tctl", "--address", "localhost:7233", "cluster", "health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  # SigNoz - Observability (traces, metrics, logs)
-  # Standalone image bundles ClickHouse + OTel Collector + SigNoz UI
-  signoz:
-    image: signoz/signoz-standalone:latest
-    container_name: genvora-signoz
-    restart: unless-stopped
-    privileged: true
-    ports:
-      - "3333:8080"   # SigNoz UI (remapped to 3333 to avoid conflicts)
-      - "4317:4317"   # OTLP gRPC receiver
-      - "4318:4318"   # OTLP HTTP receiver
-    volumes:
-      - signoz_clickhouse:/var/lib/clickhouse
-      - signoz_data:/var/lib/signoz
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/"]
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "localhost:7233"]
       interval: 15s
       timeout: 5s
-      retries: 10
+      retries: 15
       start_period: 30s
+
+  # SigNoz is NOT in this Compose file.
+  # Deploy reproducibly with Foundry from the repo root:
+  #   foundryctl cast -f casting.yaml
+  # UI http://localhost:8080  |  OTLP 4317/4318  |  MCP http://localhost:8000
 
 volumes:
   postgres_data:
   redis_data:
-  signoz_clickhouse:
-  signoz_data:

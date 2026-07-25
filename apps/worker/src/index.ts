@@ -7,6 +7,7 @@ import { TASK_QUEUES } from "@repo/shared-types";
 import { validateEnv } from "./env.validation";
 import * as activities from "./activities/audit.activities";
 import { llmSummarizeActivity } from "./activities/llm.activities";
+import { startQueuedScanPoller } from "./queued-scan-poller";
 
 async function main() {
   // Validate required env vars — exit with non-zero if missing
@@ -62,6 +63,9 @@ async function main() {
       timestamp: new Date().toISOString(),
     }),
   );
+
+  // Bridge: Cloudflare API writes status=queued → this starts Temporal workflows → OTEL → SigNoz
+  startQueuedScanPoller(temporalAddress);
 
   await auditWorker.run();
 }

@@ -148,7 +148,7 @@ export default function DashboardPage() {
             <Stat label="Sites tracked" value={String(sites.length)} ok />
             <Stat
               label="SigNoz"
-              value="http://localhost:3333"
+              value={SIGNOZ_URL.replace(/^https?:\/\//, "")}
               ok
               href={SIGNOZ_URL}
             />

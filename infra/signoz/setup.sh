@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-SIGNOZ_URL="${1:-http://localhost:3333}"
+SIGNOZ_URL="${1:-http://localhost:8080}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=== Genvora SigNoz Setup ==="

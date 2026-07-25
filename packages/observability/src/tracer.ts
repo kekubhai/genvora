@@ -30,6 +30,8 @@ export function initTracer(
   const traceExporter = new OTLPTraceExporter({ url: endpoint });
 
   sdk = new NodeSDK({
+    // Critical: without this, SigNoz shows traces under an unknown/empty service
+    serviceName,
     traceExporter,
     instrumentations: [
       getNodeAutoInstrumentations({

@@ -835,10 +835,12 @@ export async function storeSnapshotActivity(
       });
 
     if (htmlError) {
+      // Soft-fail: keep audit pipeline moving; error still shows in SigNoz
       span.setAttribute("snapshot.html_upload.error", htmlError.message);
+      span.setAttribute("snapshot.skipped", true);
       span.setStatus({ code: SpanStatusCode.ERROR, message: htmlError.message });
       span.end();
-      throw new Error(`Failed to upload HTML: ${htmlError.message}`);
+      return { rawHtmlUrl: "", screenshotUrl: "" };
     }
     span.setAttribute("snapshot.html_upload.success", true);
 
@@ -858,11 +860,13 @@ export async function storeSnapshotActivity(
         "snapshot.screenshot_upload.error",
         screenshotError.message,
       );
-      span.setStatus({ code: SpanStatusCode.ERROR, message: screenshotError.message });
+      span.setAttribute("snapshot.screenshot_skipped", true);
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: screenshotError.message,
+      });
       span.end();
-      throw new Error(
-        `Failed to upload screenshot: ${screenshotError.message}`,
-      );
+      return { rawHtmlUrl: htmlPath, screenshotUrl: "" };
     }
     span.setAttribute("snapshot.screenshot_upload.success", true);
 

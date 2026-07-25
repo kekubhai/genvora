@@ -1,0 +1,41 @@
+# Genvora — SigNoz via Foundry (reproducible self-host)
+# Docs: https://signoz.io/docs/install/docker/
+#
+# Deploy (from repo root, Linux/macOS or WSL):
+#   curl -fsSL https://signoz.io/foundry.sh | bash
+#   foundryctl cast -f casting.yaml
+#
+# UI  http://localhost:8080
+# OTLP http://localhost:4317 (gRPC) / 4318 (HTTP)
+# MCP  http://localhost:8000
+apiVersion: v1alpha1
+kind: Installation
+metadata:
+  name: genvora-signoz
+spec:
+  deployment:
+    flavor: compose
+    mode: docker
+  mcp:
+    spec:
+      enabled: true
+  patches:
+    # Point MCP at the SigNoz API
+    - target: deployment/compose.yaml
+      operations:
+        - op: replace
+          path: /services/genvora-signoz-mcp/environment
+          value:
+            - MCP_SERVER_PORT=8000
+            - SIGNOZ_URL=http://genvora-signoz-signoz-0:8080
+            - TRANSPORT_MODE=http
+        # OpAMP rewrites collector config and drops OTLP listeners — run static config only
+        - op: replace
+          path: /services/ingester/command
+          value:
+            - -c
+            - |
+              /signoz-otel-collector migrate sync check &&
+              /signoz-otel-collector --config=/etc/otel-collector-config.yaml
+        - op: remove
+          path: /services/ingester/volumes/1

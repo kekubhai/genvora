@@ -24,6 +24,7 @@ AI-powered multi-tenant SaaS platform built with Next.js, NestJS, and Cloudflare
 - **Cloudflare Workers** (serverless compute)
 - **Temporal** (job orchestration)
 - **Redis** (caching & rate limiting)
+- **SigNoz** via **Foundry** (`casting.yaml` — traces, metrics, logs, MCP)
 - **Vercel** (frontend hosting)
 - **Sentry** (error monitoring)
 - **PostHog** (product analytics)
@@ -31,20 +32,24 @@ AI-powered multi-tenant SaaS platform built with Next.js, NestJS, and Cloudflare
 ## Monorepo Structure
 
 ```
-agentlens/
+genvora/
 ├── apps/
 │   ├── web/              # Next.js frontend
 │   ├── api/               # NestJS backend API
-│   └── worker/            # Temporal workers
+│   └── worker/            # Temporal workers (OTEL → SigNoz)
 ├── packages/
 │   ├── db/                # Prisma schema + migrations
 │   ├── llm-client/         # LLM provider abstraction
+│   ├── observability/      # OpenTelemetry tracer
 │   ├── scoring-engine/     # Deterministic scoring logic
 │   └── shared-types/      # Shared TypeScript types
-├── workers/                # Cloudflare Workers
+├── casting.yaml            # SigNoz Foundry install (reproducible)
+├── casting.yaml.lock       # Locked Foundry casting
+├── pours/                  # Generated Compose (from foundryctl forge)
 ├── infra/
-│   └── docker-compose.yml  # Local development services
-└── package.json           # Root workspace configuration
+│   ├── docker-compose.yml  # Postgres, Redis, Temporal
+│   └── signoz/             # Dashboard + alerts import
+└── package.json
 ```
 
 ## Getting Started
@@ -120,6 +125,21 @@ This will start:
 - PostgreSQL (local database)
 - Redis (local cache)
 - Temporal (workflow orchestration)
+
+### 3b. Start SigNoz (Foundry)
+
+SigNoz is deployed separately with Foundry so judges can reproduce it from `casting.yaml` + `casting.yaml.lock`:
+
+```bash
+curl -fsSL https://signoz.io/foundry.sh | bash
+foundryctl cast -f casting.yaml
+```
+
+- UI: http://localhost:8080  
+- OTLP: `localhost:4317` / `4318`  
+- MCP: http://localhost:8000  
+
+See [infra/signoz/README.md](infra/signoz/README.md) for dashboard/alerts import and MCP setup.
 
 ### 4. Database Setup
 
