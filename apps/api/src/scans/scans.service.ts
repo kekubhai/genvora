@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { TASK_QUEUES, type AuditWorkflowInput } from "@repo/shared-types";
 
@@ -7,7 +7,8 @@ export class ScansService {
   private readonly logger = new Logger(ScansService.name);
   private temporalClient: any = null;
 
-  constructor(private readonly prisma: PrismaService) {
+  // Explicit @Inject — wrangler/esbuild does not emit design:paramtypes
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {
     // Lazy-init Temporal client — Temporal is optional (requires Docker)
     this.initTemporalClient();
   }
@@ -44,7 +45,7 @@ export class ScansService {
   }
 
   async createScan(siteId: string, url: string) {
-    // Create scan record in database
+    // Create scan record — FK enforces site exists
     const scan = await this.prisma.scan.create({
       data: {
         siteId,
@@ -52,7 +53,20 @@ export class ScansService {
       },
     });
 
-    // Trigger Temporal workflow asynchronously
+    if (!this.temporalClient) {
+      this.logger.warn(
+        JSON.stringify({
+          level: "warn",
+          message: "Scan queued but Temporal is unavailable — leaving status=queued",
+          scanId: scan.id,
+          url,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+      return scan;
+    }
+
+    // Trigger Temporal workflow asynchronously (do not await — keep API fast)
     this.triggerAuditWorkflow(scan.id, siteId, url).catch((error) => {
       console.error("Failed to trigger audit workflow:", error);
     });
@@ -105,6 +119,10 @@ export class ScansService {
   }
 
   private async triggerAuditWorkflow(scanId: string, siteId: string, url: string) {
+    if (!this.temporalClient) {
+      return;
+    }
+
     try {
       const workflowId = `audit-${scanId}`;
       const input: AuditWorkflowInput = { siteId, url };

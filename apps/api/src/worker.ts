@@ -1,9 +1,12 @@
 import "reflect-metadata";
 import type { ExecutionContext } from "@cloudflare/workers-types";
+import { handleSitesAndScans } from "./cf-routes";
 
 let adapter: any = null;
 let app: any = null;
 let auth: any = null;
+let appInit: Promise<any> | null = null;
+let authInit: Promise<any> | null = null;
 
 export interface Env {
   DATABASE_URL: string;
@@ -47,96 +50,129 @@ function corsHeaders(request: Request, env: Env): Record<string, string> {
   const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     "Access-Control-Allow-Headers":
-      request.headers.get("Access-Control-Request-Headers") ?? "Content-Type, Authorization",
+      request.headers.get("Access-Control-Request-Headers") ??
+      "Content-Type, Authorization",
     "Access-Control-Allow-Credentials": "true",
     Vary: "Origin",
   };
 
   if (origin && allowed.includes(origin)) {
     headers["Access-Control-Allow-Origin"] = origin;
+  } else if (!origin) {
+    // Non-browser clients
+    headers["Access-Control-Allow-Origin"] = allowed[0] ?? "*";
   }
 
   return headers;
 }
 
-async function getApplication(env: Env) {
-  if (!app) {
-    applyEnv(env);
-
-    const { NestFactory } = await import("@nestjs/core");
-    const { CloudflareAdapter } = await import("@mridang/nestjs-platform-cloudflare");
-    const { AppModule } = await import("./app.module.js");
-
-    adapter = new CloudflareAdapter();
-    app = await NestFactory.create(AppModule, adapter, {
-      logger: ["error", "warn", "log"],
-    });
-
-    app.enableCors({
-      // Must be an array — Nest treats a comma-separated string as one origin
-      origin: getAllowedOrigins(env),
-      credentials: true,
-    });
-
-    await app.init();
+function withCors(response: Response, cors: Record<string, string>): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(cors)) {
+    headers.set(key, value);
   }
-  return app;
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+async function getApplication(env: Env) {
+  if (app) return app;
+
+  if (!appInit) {
+    appInit = (async () => {
+      applyEnv(env);
+
+      const { NestFactory } = await import("@nestjs/core");
+      const { CloudflareAdapter } = await import("@mridang/nestjs-platform-cloudflare");
+      const { AppModule } = await import("./app.module.js");
+
+      adapter = new CloudflareAdapter();
+      const nestApp = await NestFactory.create(AppModule, adapter, {
+        logger: ["error", "warn", "log"],
+      });
+
+      nestApp.enableCors({
+        origin: getAllowedOrigins(env),
+        credentials: true,
+      });
+
+      await nestApp.init();
+      app = nestApp;
+      return nestApp;
+    })().catch((err) => {
+      appInit = null;
+      throw err;
+    });
+  }
+
+  return appInit;
 }
 
 async function getAuth(env: Env) {
-  if (!auth) {
-    applyEnv(env);
+  if (auth) return auth;
 
-    const { createAuth } = await import("./auth/auth.config.js");
-    auth = await createAuth();
+  if (!authInit) {
+    authInit = (async () => {
+      applyEnv(env);
+      const { createAuth } = await import("./auth/auth.config.js");
+      auth = await createAuth();
+      return auth;
+    })().catch((err) => {
+      authInit = null;
+      throw err;
+    });
   }
 
-  return auth;
+  return authInit;
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const cors = corsHeaders(request, env);
 
-    if (url.pathname === "/health") {
-      const cors = corsHeaders(request, env);
+    try {
+      applyEnv(env);
+
+      // Always answer CORS preflight without touching Nest/Prisma
       if (request.method === "OPTIONS") {
         return new Response(null, { status: 204, headers: cors });
       }
+
+      if (url.pathname === "/health") {
+        return Response.json(
+          {
+            status: "ok",
+            environment: env.ENVIRONMENT ?? "production",
+          },
+          { headers: cors },
+        );
+      }
+
+      if (url.pathname === "/auth" || url.pathname.startsWith("/auth/")) {
+        const authInstance = await getAuth(env);
+        const response: Response = await authInstance.handler(request);
+        return withCors(response, cors);
+      }
+
+      // Fast path: sites + scans without Nest (avoids cold-start hangs)
+      const fast = await handleSitesAndScans(request, cors);
+      if (fast) return fast;
+
+      // Fallback: remaining Nest routes
+      await getApplication(env);
+      const response = await adapter.handle(request);
+      return withCors(response, cors);
+    } catch (err) {
       return Response.json(
         {
-          status: "ok",
-          environment: env.ENVIRONMENT ?? "production",
+          error: err instanceof Error ? err.message : "Internal server error",
         },
-        { headers: cors },
+        { status: 500, headers: cors },
       );
     }
-
-    if (url.pathname === "/auth" || url.pathname.startsWith("/auth/")) {
-      const cors = corsHeaders(request, env);
-
-      // Handle CORS preflight requests before hitting Better Auth
-      if (request.method === "OPTIONS") {
-        return new Response(null, { status: 204, headers: cors });
-      }
-
-      const authInstance = await getAuth(env);
-      const response: Response = await authInstance.handler(request);
-
-      // Ensure CORS headers are present on the auth response
-      const headers = new Headers(response.headers);
-      for (const [key, value] of Object.entries(cors)) {
-        headers.set(key, value);
-      }
-
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
-    }
-
-    await getApplication(env);
-    return adapter.handle(request);
   },
 };

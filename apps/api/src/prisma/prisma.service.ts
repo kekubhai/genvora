@@ -9,33 +9,15 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     try {
-      const isWorkers = typeof globalThis?.navigator !== "undefined";
-
-      if (isWorkers) {
-        // Cloudflare Workers: use @prisma/adapter-pg
-        const { PrismaClient } = await import("@prisma/client");
-        const { PrismaPg } = await import("@prisma/adapter-pg");
-        const { Pool } = await import("pg");
-        const pool = new Pool({
-          connectionString: process.env["DATABASE_URL"] ?? "",
-        });
-        const adapter = new PrismaPg(pool);
-        this.client = new PrismaClient({
-          adapter: adapter as any,
-          log: ["error"],
-        });
-      } else {
-        // Node.js (local dev / Docker): use standard PrismaClient
-        const { PrismaClient } = await import("@prisma/client");
-        this.client = new PrismaClient({
-          log: process.env["NODE_ENV"] === "development" ? ["query", "error", "warn"] : ["error"],
-        });
-      }
-
+      // Standard PrismaClient works on this Worker with nodejs_compat.
+      // The pg Pool adapter has been observed to hang on $connect in production.
+      const { PrismaClient } = await import("@prisma/client");
+      this.client = new PrismaClient({
+        log: ["error"],
+      });
       await this.client.$connect();
       this.logger.log("Connected to Postgres via Prisma");
     } catch (err) {
-      const isWorkers = typeof globalThis?.navigator !== "undefined";
       const msg = "Failed to connect to Postgres on startup";
 
       process.stderr.write(
@@ -48,10 +30,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
         }) + "\n",
       );
 
-      if (isWorkers) {
-        throw new Error(msg);
-      }
-      process.exit(1);
+      this.logger.error(msg);
     }
   }
 

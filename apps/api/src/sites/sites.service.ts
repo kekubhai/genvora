@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
 const DEMO_ORG_ID = "org_demo_1";
 
 @Injectable()
 export class SitesService {
-  constructor(private readonly prisma: PrismaService) {}
+  // Explicit @Inject — wrangler/esbuild does not emit design:paramtypes
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async listSites() {
     return this.prisma.site.findMany({

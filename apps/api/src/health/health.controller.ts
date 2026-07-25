@@ -1,10 +1,11 @@
-import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
+import { Controller, Get, Inject, ServiceUnavailableException } from "@nestjs/common";
 import { HealthService } from "./health.service";
 import type { HealthStatus } from "@repo/shared-types";
 
 @Controller("health")
 export class HealthController {
-  constructor(private readonly healthService: HealthService) {}
+  // Explicit @Inject — wrangler/esbuild does not emit design:paramtypes
+  constructor(@Inject(HealthService) private readonly healthService: HealthService) {}
 
   @Get()
   async check(): Promise<HealthStatus> {

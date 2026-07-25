@@ -1,13 +1,14 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { RedisService } from "../redis/redis.service";
 import type { HealthStatus } from "@repo/shared-types";
 
 @Injectable()
 export class HealthService {
+  // Explicit @Inject — wrangler/esbuild does not emit design:paramtypes
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly redis: RedisService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(RedisService) private readonly redis: RedisService,
   ) {}
 
   async check(): Promise<HealthStatus> {

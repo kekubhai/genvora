@@ -1,28 +1,4 @@
-// PrismaClient singleton for Better Auth adapter
-// (separate from the NestJS-injected PrismaService to avoid circular deps)
-let prismaForAuth: any = null;
-
-async function getPrismaForAuth() {
-  if (prismaForAuth) return prismaForAuth;
-
-  const isWorkers = typeof globalThis?.navigator !== "undefined";
-
-  if (isWorkers) {
-    const { PrismaClient } = await import("@prisma/client");
-    const { PrismaPg } = await import("@prisma/adapter-pg");
-    const { Pool } = await import("pg");
-    const pool = new Pool({
-      connectionString: process.env["DATABASE_URL"] ?? "",
-    });
-    const adapter = new PrismaPg(pool);
-    prismaForAuth = new PrismaClient({ adapter: adapter as any });
-  } else {
-    const { PrismaClient } = await import("@prisma/client");
-    prismaForAuth = new PrismaClient();
-  }
-
-  return prismaForAuth;
-}
+import { getSharedPrisma } from "../shared-prisma";
 
 export async function createAuth() {
   // Dynamic imports for ESM-only packages (better-auth is ESM-only)
@@ -37,7 +13,10 @@ export async function createAuth() {
   const secret = process.env["BETTER_AUTH_SECRET"];
 
   if (!secret || secret.trim() === "") {
-    const isWorkers = typeof globalThis?.navigator !== "undefined";
+    const g = globalThis as Record<string, unknown>;
+    const isWorkers =
+      typeof g["WebSocketPair"] === "function" ||
+      typeof globalThis?.navigator !== "undefined";
     const msg = "Missing required environment variable: BETTER_AUTH_SECRET";
 
     if (isWorkers) {
@@ -55,7 +34,7 @@ export async function createAuth() {
     process.exit(1);
   }
 
-  const client = await getPrismaForAuth();
+  const client = await getSharedPrisma();
 
   return betterAuth({
     secret,

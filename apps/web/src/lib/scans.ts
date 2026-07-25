@@ -74,7 +74,10 @@ export async function upsertSite(domainOrUrl: string): Promise<SiteSummary> {
     body: JSON.stringify({ domain: domainOrUrl }),
   });
   if (!response.ok) {
-    throw new Error(`Failed to create site (${response.status})`);
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `Failed to create site (${response.status})${detail ? `: ${detail}` : ""}`,
+    );
   }
   return response.json() as Promise<SiteSummary>;
 }
@@ -82,7 +85,10 @@ export async function upsertSite(domainOrUrl: string): Promise<SiteSummary> {
 export async function listSites(): Promise<SiteSummary[]> {
   const response = await fetch(apiPath("/sites"));
   if (!response.ok) {
-    throw new Error(`Failed to list sites (${response.status})`);
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `Failed to list sites (${response.status})${detail ? `: ${detail}` : ""}`,
+    );
   }
   return response.json() as Promise<SiteSummary[]>;
 }
@@ -94,7 +100,10 @@ export async function createScan(siteId: string, url: string): Promise<ScanDto> 
     body: JSON.stringify({ url }),
   });
   if (!response.ok) {
-    throw new Error(`Failed to start scan (${response.status})`);
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `Failed to start scan (${response.status})${detail ? `: ${detail}` : ""}`,
+    );
   }
   return response.json() as Promise<ScanDto>;
 }
