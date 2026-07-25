@@ -2,14 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 :root {
-  --background: #f7f8fa;
-  --foreground: #16181d;
+  --gv-bg: #f7f7f5;
+  --gv-surface: #ffffff;
+  --gv-ink: #14201b;
+  --gv-muted: #6b7280;
+  --gv-line: #e5e7eb;
+  --gv-accent: #1f7a66;
+  --gv-accent-ink: #ffffff;
+  --gv-tint: #f3f4f6;
+  --gv-ok: #10b981;
+  --background: var(--gv-bg);
+  --foreground: var(--gv-ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background-color: var(--gv-bg);
+  color: var(--gv-ink);
 }
 
 * {
@@ -17,6 +30,215 @@ body {
 }
 
 ::selection {
-  background: #c7ece2;
-  color: #101418;
+  background: #b7e2d4;
+  color: #0f1a16;
+}
+
+/* Hero notification cards: cascade in, then idle-float */
+
+@keyframes gv-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.92);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes gv-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+.gv-pop {
+  animation: gv-pop-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.gv-float {
+  animation: gv-float 6s ease-in-out infinite;
+}
+
+/* Scroll reveal: `is-in` is set by the Reveal component once in view */
+
+.gv-reveal {
+  opacity: 0;
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gv-from-up {
+  transform: translateY(26px);
+}
+.gv-from-left {
+  transform: translateX(-30px);
+}
+.gv-from-right {
+  transform: translateX(30px);
+}
+.gv-from-scale {
+  transform: scale(0.96);
+}
+
+.gv-reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Bars and meters that draw themselves once their Reveal ancestor is in view */
+
+.gv-grow-x {
+  width: 0;
+  transition: width 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.is-in .gv-grow-x {
+  width: var(--gv-w, 100%);
+}
+
+.gv-grow-y {
+  height: 0;
+  transition: height 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.is-in .gv-grow-y {
+  height: var(--gv-h, 100%);
+}
+
+/* Staggered children: fade up as the parent Reveal enters */
+
+.gv-stagger {
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 0.55s ease-out,
+    transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.is-in .gv-stagger {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero background settles from a slight zoom */
+
+@keyframes gv-zoom-out {
+  from {
+    transform: scale(1.07);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.gv-zoom {
+  animation: gv-zoom-out 1.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Looping accents */
+
+@keyframes gv-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.gv-marquee {
+  animation: gv-marquee 34s linear infinite;
+}
+.gv-marquee-wrap:hover .gv-marquee {
+  animation-play-state: paused;
+}
+
+@keyframes gv-blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.2;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+.gv-dot {
+  animation: gv-blink 1.4s ease-in-out infinite;
+}
+
+@keyframes gv-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.gv-caret {
+  animation: gv-caret 1.1s step-end infinite;
+}
+
+/* Light sweep across dark buttons on hover */
+
+.gv-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.gv-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-130%);
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 80%
+  );
+  transition: transform 0.75s ease;
+}
+.gv-sheen:hover::after {
+  transform: translateX(130%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .gv-pop,
+  .gv-float,
+  .gv-zoom,
+  .gv-marquee,
+  .gv-dot,
+  .gv-caret {
+    animation: none;
+  }
+
+  .gv-reveal,
+  .gv-stagger {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .gv-grow-x {
+    width: var(--gv-w, 100%);
+    transition: none;
+  }
+  .gv-grow-y {
+    height: var(--gv-h, 100%);
+    transition: none;
+  }
+
+  .gv-sheen::after {
+    display: none;
+  }
 }

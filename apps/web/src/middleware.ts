@@ -6,14 +6,38 @@ const PROTECTED_PREFIXES = ["/dashboard"];
 // Routes that are only for unauthenticated users (redirect to dashboard if signed in)
 const AUTH_ROUTES = ["/sign-in", "/sign-up"];
 
-// Session cookie name used by Better Auth
-const SESSION_COOKIE = "better-auth.session_token";
+// Better Auth cookie names (Secure contexts use the __Secure- prefix)
+const SESSION_COOKIES = [
+  "better-auth.session_token",
+  "__Secure-better-auth.session_token",
+];
+
+function hasSessionCookie(request: NextRequest): boolean {
+  return SESSION_COOKIES.some((name) => Boolean(request.cookies.get(name)?.value));
+}
+
+/** True when the API is on another origin — session cookies won't be on this host. */
+function isCrossOriginApi(): boolean {
+  const apiUrl =
+    process.env["NEXT_PUBLIC_API_URL"] ??
+    "https://genvora-api.anirbanghosh060.workers.dev";
+  try {
+    const host = new URL(apiUrl).hostname;
+    return host !== "localhost" && host !== "127.0.0.1";
+  } catch {
+    return true;
+  }
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const sessionCookie = request.cookies.get(SESSION_COOKIE)?.value;
-  const isAuthenticated = Boolean(sessionCookie);
+  // Cross-origin API: cookies live on the API host; client-side useSession enforces auth
+  if (isCrossOriginApi()) {
+    return NextResponse.next();
+  }
+
+  const isAuthenticated = hasSessionCookie(request);
 
   // Redirect unauthenticated users away from protected routes
   const isProtected = PROTECTED_PREFIXES.some((prefix) =>

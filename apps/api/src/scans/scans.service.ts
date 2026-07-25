@@ -77,6 +77,7 @@ export class ScansService {
       include: {
         categoryScores: true,
         recommendations: true,
+        site: { select: { id: true, domain: true } },
       },
     });
   }

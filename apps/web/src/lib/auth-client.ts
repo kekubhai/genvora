@@ -8,6 +8,8 @@ if (!process.env["NEXT_PUBLIC_API_URL"] && typeof window !== "undefined") {
 
 export const authClient = createAuthClient({
   baseURL: API_URL,
+  // Must match server basePath in apps/api (default client path is /api/auth)
+  basePath: "/auth",
   plugins: [organizationClient()],
 });
 

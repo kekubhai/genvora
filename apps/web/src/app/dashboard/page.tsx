@@ -1,182 +1,271 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { signOut, useSession } from "@/lib/auth-client";
-import { apiPath, API_URL } from "@/lib/api";
+import { API_URL } from "@/lib/api";
+import {
+  AUDIT_PIPELINE,
+  SIGNOZ_URL,
+  createScan,
+  listSites,
+  normalizeScanUrl,
+  upsertSite,
+  type SiteSummary,
+} from "@/lib/scans";
+import { cn } from "@/lib/utils";
 
-type ApiHealth = {
-  status: string;
-  environment?: string;
-};
-
-const scoreRows = [
-  ["Structure", 82, "Ready for crawl review"],
-  ["Accessibility", 74, "Needs alt text checks"],
-  ["Structured data", 61, "Schema coverage pending"],
-];
+type ApiHealth = { status: string; environment?: string };
 
 export default function DashboardPage() {
   const { data: session, isPending } = useSession();
   const router = useRouter();
+  const [url, setUrl] = useState("https://example.com");
+  const [sites, setSites] = useState<SiteSummary[]>([]);
+  const [loadingSites, setLoadingSites] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<ApiHealth | null>(null);
-  const [healthError, setHealthError] = useState(false);
+
+  const refreshSites = useCallback(async () => {
+    try {
+      const data = await listSites();
+      setSites(data);
+    } catch {
+      setSites([]);
+    } finally {
+      setLoadingSites(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    void refreshSites();
+    fetch(`${API_URL}/health`)
+      .then((r) => r.json())
+      .then((data: ApiHealth) => setHealth(data))
+      .catch(() => setHealth(null));
+  }, [refreshSites]);
 
-    fetch(apiPath("/health"))
-      .then((response) => response.json())
-      .then((data: ApiHealth) => {
-        if (!cancelled) {
-          setHealth(data);
-          setHealthError(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setHealthError(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  async function handleStartScan(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setStarting(true);
+    try {
+      const target = normalizeScanUrl(url);
+      const site = await upsertSite(target);
+      const scan = await createScan(site.id, target);
+      router.push(`/dashboard/scans/${scan.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start scan");
+      setStarting(false);
+    }
+  }
 
   async function handleSignOut() {
     await signOut({
       fetchOptions: {
-        onSuccess: () => {
-          router.push("/sign-in");
-        },
+        onSuccess: () => router.push("/sign-in"),
       },
     });
   }
 
   if (isPending) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f7f8fa]">
-        <div className="rounded-md border border-[#dfe4ea] bg-white px-4 py-3 text-sm text-[#667085] shadow-sm">
-          Loading dashboard...
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-[var(--gv-bg)]">
+        <p className="text-sm text-[var(--gv-muted)]">Loading workspace…</p>
       </div>
     );
   }
 
+  const recentScans = sites
+    .flatMap((site) =>
+      (site.scans ?? []).map((scan) => ({
+        ...scan,
+        domain: site.domain,
+        siteId: site.id,
+      })),
+    )
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+    .slice(0, 8);
+
   return (
-    <main className="min-h-screen bg-[#f7f8fa] text-[#16181d]">
+    <main className="min-h-screen bg-[var(--gv-bg)] text-[var(--gv-ink)]">
       <div className="mx-auto flex min-h-screen max-w-7xl">
-        <aside className="hidden w-64 border-r border-[#dfe4ea] bg-white px-5 py-5 lg:block">
-          <div className="text-lg font-semibold tracking-tight">Genvora</div>
-          <nav className="mt-8 space-y-1">
-            {["Overview", "Scans", "Recommendations", "Organizations"].map((item, index) => (
-              <button
-                key={item}
-                className={`w-full rounded-md px-3 py-2 text-left text-sm font-medium ${
-                  index === 0
-                    ? "bg-[#e8f4f1] text-[#175b52]"
-                    : "text-[#52606d] hover:bg-[#f7f8fa]"
-                }`}
-              >
-                {item}
-              </button>
-            ))}
+        <aside className="hidden w-60 shrink-0 border-r border-[var(--gv-line)] bg-[var(--gv-surface)] px-5 py-6 lg:block">
+          <Link href="/" className="font-[family-name:var(--font-display)] text-xl tracking-tight">
+            Genvora
+          </Link>
+          <nav className="mt-10 space-y-1 text-sm">
+            <NavItem href="/dashboard" active>
+              Overview
+            </NavItem>
+            <NavItem href="/dashboard#pipeline">Pipeline</NavItem>
+            <a
+              href={SIGNOZ_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="block rounded-md px-3 py-2 text-[var(--gv-muted)] hover:bg-[var(--gv-bg)] hover:text-[var(--gv-ink)]"
+            >
+              SigNoz traces ↗
+            </a>
           </nav>
+          <p className="mt-12 text-xs leading-5 text-[var(--gv-muted)]">
+            Each scan emits nested OpenTelemetry spans into SigNoz — latency,
+            scores, and bot UA attributes included.
+          </p>
         </aside>
 
-        <section className="flex-1 px-5 py-5 lg:px-8">
-          <header className="flex flex-col gap-4 border-b border-[#dfe4ea] pb-5 sm:flex-row sm:items-center sm:justify-between">
+        <section className="flex-1 px-5 py-6 lg:px-8">
+          <header className="flex flex-col gap-4 border-b border-[var(--gv-line)] pb-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-[#2b7a78]">Production workspace</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-                AI visibility dashboard
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--gv-accent)]">
+                AI readiness workspace
+              </p>
+              <h1 className="mt-2 font-[family-name:var(--font-display)] text-3xl tracking-tight">
+                Run an audit. Watch the agent pipeline.
               </h1>
             </div>
             <div className="flex items-center gap-3">
               {session?.user && (
                 <div className="hidden text-right sm:block">
                   <p className="text-sm font-medium">{session.user.name}</p>
-                  <p className="text-xs text-[#667085]">{session.user.email}</p>
+                  <p className="text-xs text-[var(--gv-muted)]">{session.user.email}</p>
                 </div>
               )}
               <button
+                type="button"
                 onClick={handleSignOut}
-                className="rounded-md border border-[#c9d2dc] bg-white px-3 py-2 text-sm font-medium text-[#17202a] hover:border-[#9aa8b5]"
+                className="rounded-md border border-[var(--gv-line)] bg-[var(--gv-surface)] px-3 py-2 text-sm font-medium hover:border-[var(--gv-ink)]"
               >
                 Sign out
               </button>
             </div>
           </header>
 
-          <div className="grid gap-5 py-6 xl:grid-cols-[1fr_340px]">
-            <section className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-3">
-                <StatusTile label="Backend" value={health?.status ?? "Checking"} tone={healthError ? "bad" : "good"} />
-                <StatusTile label="Auth" value={session?.user ? "Session active" : "No session"} tone={session?.user ? "good" : "warn"} />
-                <StatusTile label="Environment" value={health?.environment ?? "production"} tone="neutral" />
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <Stat label="API" value={health?.status ?? "offline"} ok={health?.status === "ok"} />
+            <Stat label="Sites tracked" value={String(sites.length)} ok />
+            <Stat
+              label="SigNoz"
+              value="localhost:3333"
+              ok
+              href={SIGNOZ_URL}
+            />
+          </div>
+
+          <form
+            onSubmit={handleStartScan}
+            className="mt-6 border border-[var(--gv-line)] bg-[var(--gv-surface)] p-5"
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+              <label className="block flex-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--gv-muted)]">
+                  Target URL
+                </span>
+                <input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  required
+                  placeholder="https://yoursite.com"
+                  className="mt-2 h-12 w-full border border-[var(--gv-line)] bg-[var(--gv-bg)] px-3 text-sm outline-none focus:border-[var(--gv-accent)]"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={starting}
+                className={cn(
+                  "h-12 shrink-0 bg-[var(--gv-ink)] px-6 text-sm font-semibold text-white",
+                  starting && "opacity-60",
+                )}
+              >
+                {starting ? "Starting…" : "Start audit scan"}
+              </button>
+            </div>
+            {error && (
+              <p role="alert" className="mt-3 text-sm text-[#9b2c2c]">
+                {error}
+              </p>
+            )}
+            <p className="mt-3 text-xs text-[var(--gv-muted)]">
+              Triggers Temporal <code className="text-[var(--gv-ink)]">AuditWorkflow</code> —
+              9 analysis activities + LLM summary, all traced as{" "}
+              <code className="text-[var(--gv-ink)]">activity.*</code> spans.
+            </p>
+          </form>
+
+          <div className="mt-8 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <section>
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 className="font-[family-name:var(--font-display)] text-xl">Recent scans</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoadingSites(true);
+                    void refreshSites();
+                  }}
+                  className="text-xs font-medium text-[var(--gv-accent)]"
+                >
+                  Refresh
+                </button>
               </div>
 
-              <div className="rounded-lg border border-[#dfe4ea] bg-white p-5 shadow-sm">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-base font-semibold">Domain audit queue</h2>
-                    <p className="mt-1 text-sm text-[#667085]">
-                      Scan workflow is ready for the backend endpoints when they are enabled.
-                    </p>
-                  </div>
-                  <button className="h-10 rounded-md bg-[#17202a] px-4 text-sm font-semibold text-white hover:bg-[#253241]">
-                    New scan
-                  </button>
+              <div className="border border-[var(--gv-line)] bg-[var(--gv-surface)]">
+                <div className="grid grid-cols-[1.2fr_0.7fr_0.5fr_0.6fr] gap-2 border-b border-[var(--gv-line)] bg-[var(--gv-bg)] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--gv-muted)]">
+                  <span>Domain</span>
+                  <span>Status</span>
+                  <span>Score</span>
+                  <span>Opened</span>
                 </div>
-
-                <div className="mt-5 overflow-hidden rounded-md border border-[#edf0f3]">
-                  <div className="grid grid-cols-[1fr_90px_1fr] bg-[#f7f8fa] px-3 py-2 text-xs font-medium uppercase tracking-[0.08em] text-[#667085]">
-                    <span>Signal</span>
-                    <span>Score</span>
-                    <span>Status</span>
-                  </div>
-                  {scoreRows.map(([label, score, status]) => (
-                    <div
-                      key={label}
-                      className="grid grid-cols-[1fr_90px_1fr] border-t border-[#edf0f3] px-3 py-3 text-sm"
+                {loadingSites ? (
+                  <p className="px-4 py-6 text-sm text-[var(--gv-muted)]">Loading…</p>
+                ) : recentScans.length === 0 ? (
+                  <p className="px-4 py-6 text-sm text-[var(--gv-muted)]">
+                    No scans yet. Start one above to populate SigNoz.
+                  </p>
+                ) : (
+                  recentScans.map((scan) => (
+                    <Link
+                      key={scan.id}
+                      href={`/dashboard/scans/${scan.id}`}
+                      className="grid grid-cols-[1.2fr_0.7fr_0.5fr_0.6fr] gap-2 border-t border-[var(--gv-line)] px-4 py-3 text-sm transition hover:bg-[var(--gv-bg)]"
                     >
-                      <span className="font-medium text-[#17202a]">{label}</span>
-                      <span>{score}</span>
-                      <span className="text-[#667085]">{status}</span>
-                    </div>
-                  ))}
-                </div>
+                      <span className="truncate font-medium">{scan.domain}</span>
+                      <StatusPill status={scan.status} />
+                      <span>{scan.overallScore ?? "—"}</span>
+                      <span className="text-[var(--gv-muted)]">
+                        {new Date(scan.createdAt).toLocaleString()}
+                      </span>
+                    </Link>
+                  ))
+                )}
               </div>
             </section>
 
-            <aside className="space-y-5">
-              <div className="rounded-lg border border-[#dfe4ea] bg-white p-5 shadow-sm">
-                <h2 className="text-sm font-semibold">Signed in as</h2>
-                {session?.user ? (
-                  <div className="mt-4 rounded-md bg-[#f7f8fa] p-3">
-                    <p className="font-medium">{session.user.name}</p>
-                    <p className="mt-1 break-all text-sm text-[#667085]">
-                      {session.user.email}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-[#667085]">No active user session.</p>
-                )}
-              </div>
-
-              <div className="rounded-lg border border-[#dfe4ea] bg-white p-5 shadow-sm">
-                <h2 className="text-sm font-semibold">Connected services</h2>
-                <dl className="mt-4 space-y-3">
-                  <ConnectionRow label="API" value="Cloudflare Workers" />
-                  <ConnectionRow label="Auth" value="Better Auth" />
-                  <ConnectionRow label="Database" value="Supabase" />
-                </dl>
-                <p className="mt-4 break-all rounded-md bg-[#f7f8fa] p-3 text-xs text-[#667085]">
-                  {API_URL}
-                </p>
-              </div>
-            </aside>
+            <section id="pipeline">
+              <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl">
+                Instrumented pipeline
+              </h2>
+              <ol className="border border-[var(--gv-line)] bg-[var(--gv-surface)]">
+                {AUDIT_PIPELINE.map((step, index) => (
+                  <li
+                    key={step.id}
+                    className="flex items-start gap-3 border-t border-[var(--gv-line)] px-4 py-3 first:border-t-0"
+                  >
+                    <span className="mt-0.5 w-5 shrink-0 text-xs font-semibold text-[var(--gv-accent)]">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{step.label}</p>
+                      <p className="text-xs text-[var(--gv-muted)]">{step.detail}</p>
+                      <code className="mt-1 block truncate text-[10px] text-[var(--gv-accent)]">
+                        {step.span}
+                      </code>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
           </div>
         </section>
       </div>
@@ -184,37 +273,73 @@ export default function DashboardPage() {
   );
 }
 
-function StatusTile({
-  label,
-  value,
-  tone,
+function NavItem({
+  href,
+  active,
+  children,
 }: {
-  label: string;
-  value: string;
-  tone: "good" | "warn" | "bad" | "neutral";
+  href: string;
+  active?: boolean;
+  children: React.ReactNode;
 }) {
-  const toneClass = {
-    good: "bg-[#dff7ed] text-[#156447]",
-    warn: "bg-[#fff4d6] text-[#875a00]",
-    bad: "bg-[#fff1f1] text-[#9b2c2c]",
-    neutral: "bg-[#eef2f6] text-[#475467]",
-  }[tone];
-
   return (
-    <div className="rounded-lg border border-[#dfe4ea] bg-white p-4 shadow-sm">
-      <p className="text-sm text-[#667085]">{label}</p>
-      <p className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${toneClass}`}>
-        {value}
-      </p>
-    </div>
+    <Link
+      href={href}
+      className={cn(
+        "block rounded-md px-3 py-2",
+        active
+          ? "bg-[var(--gv-tint)] font-medium text-[var(--gv-accent-ink)]"
+          : "text-[var(--gv-muted)] hover:bg-[var(--gv-bg)] hover:text-[var(--gv-ink)]",
+      )}
+    >
+      {children}
+    </Link>
   );
 }
 
-function ConnectionRow({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  ok,
+  href,
+}: {
+  label: string;
+  value: string;
+  ok?: boolean;
+  href?: string;
+}) {
+  const inner = (
+    <>
+      <p className="text-xs uppercase tracking-[0.12em] text-[var(--gv-muted)]">{label}</p>
+      <p className={cn("mt-2 text-sm font-semibold", ok ? "text-[var(--gv-ok)]" : "text-[var(--gv-ink)]")}>
+        {value}
+      </p>
+    </>
+  );
+  const className = "border border-[var(--gv-line)] bg-[var(--gv-surface)] p-4";
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className={`${className} block hover:border-[var(--gv-accent)]`}>
+        {inner}
+      </a>
+    );
+  }
+  return <div className={className}>{inner}</div>;
+}
+
+function StatusPill({ status }: { status: string }) {
+  const tone =
+    status === "completed"
+      ? "bg-[var(--gv-tint)] text-[var(--gv-ok)]"
+      : status === "failed"
+        ? "bg-[#fff1f1] text-[#9b2c2c]"
+        : status === "running"
+          ? "bg-[#fff4d6] text-[#875a00]"
+          : "bg-[var(--gv-bg)] text-[var(--gv-muted)]";
+
   return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-sm text-[#667085]">{label}</dt>
-      <dd className="text-right text-sm font-medium text-[#17202a]">{value}</dd>
-    </div>
+    <span className={cn("inline-flex rounded px-2 py-0.5 text-xs font-semibold capitalize", tone)}>
+      {status}
+    </span>
   );
 }

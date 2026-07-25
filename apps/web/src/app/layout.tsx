@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
 import { PostHogProvider } from "@/components/providers/posthog-provider";
 
-const inter = Inter({ subsets: ["latin"] });
+const display = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+});
+
+const sans = Manrope({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
   title: "Genvora",
-  description: "AI visibility audits for teams shipping modern websites.",
+  description: "AI readiness audits with OpenTelemetry-traced agent pipelines.",
 };
 
 export default function RootLayout({
@@ -17,10 +25,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased`}>
-        <PostHogProvider>
-          {children}
-        </PostHogProvider>
+      <body className={`${sans.variable} ${display.variable} font-[family-name:var(--font-sans)] antialiased`}>
+        <PostHogProvider>{children}</PostHogProvider>
       </body>
     </html>
   );

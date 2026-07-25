@@ -67,6 +67,13 @@ export async function createAuth() {
     emailAndPassword: {
       enabled: true,
     },
+    // Required so localhost (or any other site) can hold credentialed sessions against the Worker
+    advanced: {
+      defaultCookieAttributes: {
+        sameSite: "none",
+        secure: true,
+      },
+    },
     plugins: [
       organization({
         // Invitations expire after 7 days

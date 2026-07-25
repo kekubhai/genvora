@@ -73,7 +73,8 @@ async function getApplication(env: Env) {
     });
 
     app.enableCors({
-      origin: process.env["FRONTEND_URL"] ?? "*",
+      // Must be an array — Nest treats a comma-separated string as one origin
+      origin: getAllowedOrigins(env),
       credentials: true,
     });
 
@@ -98,10 +99,17 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
-      return Response.json({
-        status: "ok",
-        environment: env.ENVIRONMENT ?? "production",
-      });
+      const cors = corsHeaders(request, env);
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: cors });
+      }
+      return Response.json(
+        {
+          status: "ok",
+          environment: env.ENVIRONMENT ?? "production",
+        },
+        { headers: cors },
+      );
     }
 
     if (url.pathname === "/auth" || url.pathname.startsWith("/auth/")) {
