@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AUDIT_PIPELINE,
   SIGNOZ_URL,
+  buildImprovePrompt,
   getScan,
   type CategoryScoreDto,
   type RecommendationDto,
@@ -55,6 +56,10 @@ export default function ScanDetailPage() {
   }, [scanId]);
 
   const stageState = useMemo(() => deriveStages(scan), [scan]);
+  const improvePrompt = useMemo(
+    () => (scan ? buildImprovePrompt(scan) : ""),
+    [scan],
+  );
 
   if (error && !scan) {
     return (
@@ -78,6 +83,9 @@ export default function ScanDetailPage() {
   const critical = scan.recommendations.filter((r) => r.severity === "critical").length;
   const warnings = scan.recommendations.filter((r) => r.severity === "warning").length;
   const infos = scan.recommendations.filter((r) => r.severity === "info").length;
+  const promptReady =
+    scan.status === "completed" &&
+    (scan.recommendations.length > 0 || scan.categoryScores.length > 0);
 
   return (
     <main className="min-h-screen bg-[var(--gv-bg)] text-[var(--gv-ink)]">
@@ -143,6 +151,8 @@ export default function ScanDetailPage() {
           </aside>
 
           <div className="space-y-6">
+            <ImprovePromptPanel prompt={improvePrompt} ready={promptReady} status={String(scan.status)} />
+
             <section className="border border-[var(--gv-line)] bg-[var(--gv-surface)] p-5">
               <h2 className="font-[family-name:var(--font-display)] text-xl">
                 Trace-aligned pipeline
@@ -176,7 +186,7 @@ export default function ScanDetailPage() {
               </ol>
             </section>
 
-            {scan.categoryScores.length > 0 && (
+            {scan.categoryScores.length > 0 ? (
               <section className="border border-[var(--gv-line)] bg-[var(--gv-surface)] p-5">
                 <h2 className="font-[family-name:var(--font-display)] text-xl">Category scores</h2>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -185,22 +195,121 @@ export default function ScanDetailPage() {
                   ))}
                 </div>
               </section>
+            ) : (
+              <section className="border border-[var(--gv-line)] bg-[var(--gv-surface)] p-5">
+                <h2 className="font-[family-name:var(--font-display)] text-xl">Category scores</h2>
+                <p className="mt-3 text-sm text-[var(--gv-muted)]">
+                  {scan.status === "completed"
+                    ? "No category breakdown was saved for this scan."
+                    : scan.status === "failed"
+                      ? "Scan failed before scoring finished. Start a new audit from the dashboard."
+                      : "Scores appear here when the audit workflow completes."}
+                </p>
+              </section>
             )}
 
-            {scan.recommendations.length > 0 && (
-              <section className="border border-[var(--gv-line)] bg-[var(--gv-surface)] p-5">
-                <h2 className="font-[family-name:var(--font-display)] text-xl">Findings</h2>
+            <section className="border border-[var(--gv-line)] bg-[var(--gv-surface)] p-5">
+              <h2 className="font-[family-name:var(--font-display)] text-xl">
+                How to improve
+              </h2>
+              <p className="mt-1 text-sm text-[var(--gv-muted)]">
+                Severity-ranked findings with optional fix snippets you can paste into your site.
+              </p>
+              {scan.recommendations.length > 0 ? (
                 <ul className="mt-4 space-y-3">
                   {scan.recommendations.map((rec) => (
                     <RecommendationRow key={rec.id} rec={rec} />
                   ))}
                 </ul>
-              </section>
-            )}
+              ) : (
+                <p className="mt-4 text-sm text-[var(--gv-muted)]">
+                  {scan.status === "queued" || scan.status === "running"
+                    ? "Recommendations will show up here after scoring + analysis finish (keep this page open — it refreshes every 2s)."
+                    : scan.status === "failed"
+                      ? "No report was produced. Re-run the scan; check SigNoz traces if it fails again."
+                      : "No recommendations were generated for this URL."}
+                </p>
+              )}
+            </section>
           </div>
         </div>
       </div>
     </main>
+  );
+}
+
+function ImprovePromptPanel({
+  prompt,
+  ready,
+  status,
+}: {
+  prompt: string;
+  ready: boolean;
+  status: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+
+  async function handleCopy() {
+    if (!ready || !prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setCopyError(null);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopyError("Could not copy — select the text below and copy manually.");
+    }
+  }
+
+  return (
+    <section className="border border-[var(--gv-line)] bg-[var(--gv-surface)] p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="font-[family-name:var(--font-display)] text-xl">
+            Fix-it prompt for your IDE / CLI
+          </h2>
+          <p className="mt-1 text-sm text-[var(--gv-muted)]">
+            Copy this into Cursor, Claude Code, or your agent CLI. It includes the full report and
+            step-by-step directions to raise the score.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleCopy()}
+          disabled={!ready}
+          className={cn(
+            "shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition",
+            ready
+              ? "bg-[var(--gv-ink)] text-white hover:opacity-90"
+              : "cursor-not-allowed bg-[#e8edf2] text-[var(--gv-muted)]",
+          )}
+        >
+          {copied ? "Copied" : "Copy prompt"}
+        </button>
+      </div>
+
+      {!ready ? (
+        <p className="mt-4 text-sm text-[var(--gv-muted)]">
+          {status === "queued" || status === "running"
+            ? "Prompt unlocks when the audit finishes and findings are ready."
+            : status === "failed"
+              ? "Scan failed — re-run an audit to generate a fix-it prompt."
+              : "No report data yet to build a prompt."}
+        </p>
+      ) : (
+        <>
+          {copyError && (
+            <p className="mt-3 text-sm text-[#9b2c2c]" role="alert">
+              {copyError}
+            </p>
+          )}
+          <pre className="mt-4 max-h-72 overflow-auto whitespace-pre-wrap break-words border border-[var(--gv-line)] bg-[var(--gv-bg)] p-4 font-mono text-[11px] leading-relaxed text-[var(--gv-ink)]">
+            {prompt}
+          </pre>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -209,7 +318,6 @@ function deriveStages(scan: ScanDto | null): Array<"pending" | "active" | "done"
   if (!scan) return Array.from({ length: total }, () => "pending");
 
   if (scan.status === "failed") {
-    // Mark middle stage failed for visual honesty when we lack per-activity status
     return AUDIT_PIPELINE.map((_, i) => (i < 2 ? "done" : i === 2 ? "failed" : "pending"));
   }
 
@@ -221,7 +329,6 @@ function deriveStages(scan: ScanDto | null): Array<"pending" | "active" | "done"
     return AUDIT_PIPELINE.map((_, i) => (i === 0 ? "active" : "pending"));
   }
 
-  // running — animate through stages based on elapsed time heuristically
   const started = +new Date(scan.createdAt);
   const elapsedSec = Math.max(0, (Date.now() - started) / 1000);
   const activeIndex = Math.min(total - 1, Math.floor(elapsedSec / 3));

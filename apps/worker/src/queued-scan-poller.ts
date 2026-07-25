@@ -6,6 +6,71 @@ import { TASK_QUEUES, type AuditWorkflowInput } from "@repo/shared-types";
 
 const POLL_MS = Number(process.env["SCAN_POLL_INTERVAL_MS"] ?? 5000);
 
+async function persistWorkflowResult(
+  prisma: PrismaClient,
+  scanId: string,
+  handle: { result: () => Promise<any>; workflowId: string },
+): Promise<void> {
+  try {
+    const result = await handle.result();
+    await prisma.scan.update({
+      where: { id: scanId },
+      data: {
+        status: "completed",
+        overallScore: result?.overallScore ?? null,
+        completedAt: new Date(),
+      },
+    });
+
+    await prisma.categoryScore.deleteMany({ where: { scanId } });
+    await prisma.recommendation.deleteMany({ where: { scanId } });
+
+    const scores = result?.categoryScores ?? {};
+    for (const [category, score] of Object.entries(scores)) {
+      const numeric = typeof score === "number" ? score : Number(score);
+      if (!Number.isFinite(numeric)) continue;
+      await prisma.categoryScore.create({
+        data: {
+          scanId,
+          category,
+          score: Math.round(numeric),
+          details: {},
+        },
+      });
+    }
+
+    for (const rec of result?.recommendations ?? []) {
+      await prisma.recommendation.create({
+        data: {
+          scanId,
+          severity: rec.severity ?? "info",
+          title: rec.title ?? "Finding",
+          description: rec.description ?? "",
+          fixSnippet: rec.fixSnippet ?? null,
+        },
+      });
+    }
+
+    console.log(
+      JSON.stringify({
+        level: "info",
+        message: "Scan report persisted",
+        scanId,
+        workflowId: handle.workflowId,
+        overallScore: result?.overallScore ?? null,
+        recommendations: (result?.recommendations ?? []).length,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  } catch (err) {
+    console.error("AuditWorkflow failed:", err);
+    await prisma.scan.update({
+      where: { id: scanId },
+      data: { status: "failed" },
+    });
+  }
+}
+
 function createPrisma() {
   const connectionString = process.env["DATABASE_URL"] ?? "";
   // Prefer direct URL when available (pooler can break long worker sessions)
@@ -74,9 +139,12 @@ export function startQueuedScanPoller(temporalAddress: string): void {
         });
 
         try {
+          // Unique workflow id per attempt — reuse of audit-${scanId} blocked retries
+          // when an old timed-out execution was still open in Temporal.
+          const workflowId = `audit-${scan.id}-${Date.now()}`;
           const handle = await client.workflow.start("AuditWorkflow", {
             taskQueue: TASK_QUEUES.AUDIT,
-            workflowId: `audit-${scan.id}`,
+            workflowId,
             args: [input],
           });
 
@@ -92,49 +160,7 @@ export function startQueuedScanPoller(temporalAddress: string): void {
           );
 
           // Persist results when workflow finishes (don't block the poll loop)
-          void handle
-            .result()
-            .then(async (result: any) => {
-              await prisma.scan.update({
-                where: { id: scan.id },
-                data: {
-                  status: "completed",
-                  overallScore: result?.overallScore ?? null,
-                  completedAt: new Date(),
-                },
-              });
-
-              const scores = result?.categoryScores ?? {};
-              for (const [category, score] of Object.entries(scores)) {
-                await prisma.categoryScore.create({
-                  data: {
-                    scanId: scan.id,
-                    category,
-                    score: score as number,
-                    details: {},
-                  },
-                });
-              }
-
-              for (const rec of result?.recommendations ?? []) {
-                await prisma.recommendation.create({
-                  data: {
-                    scanId: scan.id,
-                    severity: rec.severity,
-                    title: rec.title,
-                    description: rec.description,
-                    fixSnippet: rec.fixSnippet ?? null,
-                  },
-                });
-              }
-            })
-            .catch(async (err: unknown) => {
-              console.error("AuditWorkflow failed:", err);
-              await prisma.scan.update({
-                where: { id: scan.id },
-                data: { status: "failed" },
-              });
-            });
+          void persistWorkflowResult(prisma, scan.id, handle);
         } catch (err) {
           console.error("Failed to start workflow:", err);
           await prisma.scan.update({

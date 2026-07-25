@@ -71,8 +71,12 @@ export async function fetchPageActivity(url: string): Promise<PageFetchResult> {
         }
       });
 
-      // Navigate to page
-      const response = await page.goto(url, { waitUntil: "networkidle" });
+      // Prefer domcontentloaded — networkidle hangs on chatty marketing sites
+      // and blows Temporal activity timeouts before scores can be persisted.
+      const response = await page.goto(url, {
+        waitUntil: "domcontentloaded",
+        timeout: 45_000,
+      });
       if (response) {
         finalUrl = response.url();
         statusCode = response.status();
@@ -87,17 +91,21 @@ export async function fetchPageActivity(url: string): Promise<PageFetchResult> {
       span.setAttribute("url.final", finalUrl);
       span.setAttribute("url.redirected", finalUrl !== url);
 
-      // Get raw HTML (before JS execution)
-      rawHtml = await page.content();
+      // Cap HTML size — full pages + screenshots exceed Temporal's 4MB payload limit
+      const MAX_HTML = 400_000;
+      const html = await page.content();
+      rawHtml = html.length > MAX_HTML ? html.slice(0, MAX_HTML) : html;
       renderedHtml = rawHtml;
 
-      span.setAttribute("html.raw_bytes", rawHtml.length);
+      span.setAttribute("html.raw_bytes", html.length);
+      span.setAttribute("html.payload_bytes", rawHtml.length);
+      span.setAttribute("html.truncated", html.length > MAX_HTML);
 
-      // Take screenshot
-      screenshot = new Uint8Array(
-        await page.screenshot({ fullPage: true }),
-      );
-      span.setAttribute("screenshot.bytes", screenshot.length);
+      // Skip full-page screenshots in the Temporal payload (multi-MB) —
+      // storeSnapshot soft-fails without a bucket anyway.
+      screenshot = new Uint8Array();
+      span.setAttribute("screenshot.bytes", 0);
+      span.setAttribute("screenshot.skipped", true);
 
       // Try to fetch robots.txt
       try {

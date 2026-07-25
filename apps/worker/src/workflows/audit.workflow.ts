@@ -161,33 +161,75 @@ export async function AuditWorkflow(input: AuditWorkflowInput): Promise<{
     structuredDataAnalysis
   );
 
-  // Activity 9: Store snapshots
-  await storeSnapshotActivity(scanId, pageFetchResult.rawHtml, pageFetchResult.screenshot);
+  // Activity 9: Store snapshots (best-effort — missing bucket must not block the report)
+  try {
+    await storeSnapshotActivity(
+      scanId,
+      pageFetchResult.rawHtml,
+      pageFetchResult.screenshot,
+    );
+  } catch {
+    // soft-fail — scores + recommendations still return
+  }
 
-  // Activity 10: LLM-powered audit summary (agent observability)
-  const llmSummary = await llmSummarizeActivity({
-    url,
-    overallScore: scoringResult.overallScore,
-    categoryScores: scoringResult.categoryScores,
-    recommendations,
-    structure: structureAnalysis,
-    crawlability: crawlabilityAnalysis,
-    accessibility: accessibilityAnalysis,
-    semantic: semanticAnalysis,
-    structuredData: structuredDataAnalysis,
-  });
+  // Activity 10: LLM summary (best-effort)
+  let llmSummary: LLMSummaryResult = {
+    executiveSummary: `AI readiness score ${scoringResult.overallScore}/100 for ${url}. Review the severity-ranked findings to improve crawlability, structure, and structured data.`,
+    keyFindings: recommendations.slice(0, 5).map((r) => r.title),
+    priorityActions: recommendations
+      .filter((r) => r.severity === "critical" || r.severity === "warning")
+      .slice(0, 5)
+      .map((r) => r.title),
+    estimatedImpact: "Fixing critical and warning items typically yields the largest score gains.",
+    tokensUsed: 0,
+    model: "fallback",
+  };
 
-  // Update status to reflect completion
+  try {
+    llmSummary = await llmSummarizeActivity({
+      url,
+      overallScore: scoringResult.overallScore,
+      categoryScores: scoringResult.categoryScores,
+      recommendations,
+      structure: structureAnalysis,
+      crawlability: crawlabilityAnalysis,
+      accessibility: accessibilityAnalysis,
+      semantic: semanticAnalysis,
+      structuredData: structuredDataAnalysis,
+    });
+  } catch {
+    // keep deterministic fallback summary
+  }
+
   currentStatus = "completed";
+
+  // Surface the summary as the first "how to improve" finding in the UI
+  const reportRecs: Recommendation[] = [
+    {
+      scanId,
+      severity: "info",
+      title: "Executive summary",
+      description: [
+        llmSummary.executiveSummary,
+        llmSummary.priorityActions.length
+          ? `Priority actions: ${llmSummary.priorityActions.join("; ")}`
+          : "",
+        llmSummary.estimatedImpact
+          ? `Estimated impact: ${llmSummary.estimatedImpact}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      fixSnippet: undefined,
+    },
+    ...recommendations.map((rec) => ({ ...rec, scanId })),
+  ];
 
   return {
     scanId,
     overallScore: scoringResult.overallScore,
     categoryScores: scoringResult.categoryScores,
-    recommendations: recommendations.map((rec) => ({
-      ...rec,
-      scanId,
-    })),
+    recommendations: reportRecs,
     llmSummary: {
       executiveSummary: llmSummary.executiveSummary,
       keyFindings: llmSummary.keyFindings,
