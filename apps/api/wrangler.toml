@@ -21,7 +21,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
-FRONTEND_URL = "https://genvora-web.anirbanghosh060.workers.dev,https://genvora.pages.dev,http://localhost:3000,http://127.0.0.1:3000"
+FRONTEND_URL = "https://genvora-web.vercel.app,https://genvora-web.anirbanghosh060.workers.dev,https://genvora.pages.dev,http://localhost:3000,http://127.0.0.1:3000"
 API_BASE_URL = "https://genvora-api.anirbanghosh060.workers.dev"
 
 [env.staging]

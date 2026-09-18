@@ -239,6 +239,37 @@ If you experience sign-in problems during local development:
 
 5. **Cross-Origin Issues**: If using a production API URL locally, cookie-based authentication may fail due to cross-origin restrictions. Always use `http://localhost:3001` for local development.
 
+### Production Deployment (Vercel + Cloudflare Workers)
+
+For production deployment with Vercel frontend and Cloudflare Workers backend:
+
+1. **Set Environment Variables in Vercel**:
+   - `NEXT_PUBLIC_API_URL`: Set to your Cloudflare Workers API URL (e.g., `https://genvora-api.anirbanghosh060.workers.dev`)
+   - `NEXT_PUBLIC_POSTHOG_KEY`: Your PostHog project key
+   - `NEXT_PUBLIC_SENTRY_DSN`: Your Sentry DSN
+
+2. **Configure Cloudflare Workers Secrets**:
+   ```bash
+   cd apps/api
+   wrangler secret put DATABASE_URL
+   wrangler secret put BETTER_AUTH_SECRET
+   wrangler secret put SUPABASE_URL
+   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+   ```
+
+3. **Update FRONTEND_URL in Workers**: Ensure the `FRONTEND_URL` in `apps/api/wrangler.toml` includes your Vercel domain for proper CORS configuration.
+
+4. **Cross-Origin Authentication**: The application is configured to handle cross-origin authentication between Vercel and Cloudflare Workers using:
+   - `sameSite: "none"` cookies for cross-origin requests
+   - `secure: true` cookie attributes
+   - Proper CORS headers in the Workers
+   - Credentials handling in the auth client
+
+5. **Deploy Workers**:
+   ```bash
+   npm run workers:deploy
+   ```
+
 ## Database
 
 The database schema is managed via Prisma in `packages/db/prisma/schema.prisma`.

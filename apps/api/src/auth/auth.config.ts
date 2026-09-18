@@ -52,6 +52,8 @@ export async function createAuth() {
         sameSite: "none",
         secure: true,
       },
+      // Configure cookie prefix for cross-origin scenarios
+      useSecureCookies: true,
     },
     plugins: [
       organization({

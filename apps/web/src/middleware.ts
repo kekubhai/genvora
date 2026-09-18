@@ -21,8 +21,8 @@ function isCrossOriginApi(): boolean {
   const apiUrl =
     process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
   try {
-    const host = new URL(apiUrl).hostname;
-    return host !== "localhost" && host !== "127.0.0.1";
+    const apiHost = new URL(apiUrl).hostname;
+    return apiHost !== "localhost" && apiHost !== "127.0.0.1";
   } catch {
     return true;
   }
