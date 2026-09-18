@@ -29,7 +29,6 @@ export async function getSharedPrisma() {
           max: 1,
           connectionTimeoutMillis: 8_000,
           idleTimeoutMillis: 10_000,
-          allowExitOnIdle: true,
         });
         prisma = new PrismaClient({
           adapter: new PrismaPg(pool) as any,

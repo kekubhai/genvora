@@ -26,6 +26,7 @@
     "typescript": "^5.5.4"
   },
   "prisma": {
-    "seed": "node ../../node_modules/tsx/dist/cli.mjs prisma/seed.ts"
+    "seed": "node ../../node_modules/tsx/dist/cli.mjs prisma/seed.ts",
+    "schema": "prisma/schema.prisma"
   }
 }
