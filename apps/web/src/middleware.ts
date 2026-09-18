@@ -19,8 +19,7 @@ function hasSessionCookie(request: NextRequest): boolean {
 /** True when the API is on another origin — session cookies won't be on this host. */
 function isCrossOriginApi(): boolean {
   const apiUrl =
-    process.env["NEXT_PUBLIC_API_URL"] ??
-    "https://genvora-api.anirbanghosh060.workers.dev";
+    process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
   try {
     const host = new URL(apiUrl).hostname;
     return host !== "localhost" && host !== "127.0.0.1";

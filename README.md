@@ -216,6 +216,29 @@ Authentication is managed via:
 - **Frontend**: Better Auth React client in Next.js
 - **Workers**: Better Auth integration in Cloudflare Workers
 
+### Troubleshooting Sign-in Issues
+
+If you experience sign-in problems during local development:
+
+1. **Check API URL Configuration**: Ensure `NEXT_PUBLIC_API_URL` is set correctly in your `.env` file. The default fallback is `http://localhost:3001` for local development.
+
+2. **Verify API Server**: Make sure the NestJS API is running on port 3001:
+   ```bash
+   npm run dev
+   ```
+
+3. **Check Environment Variables**: Verify these required auth variables are set:
+   - `BETTER_AUTH_SECRET` (required for session signing)
+   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (for OAuth)
+   - `DATABASE_URL` (for user/session storage)
+
+4. **Database Connection**: Ensure your Supabase database is accessible and migrations have been run:
+   ```bash
+   npm run db:migrate
+   ```
+
+5. **Cross-Origin Issues**: If using a production API URL locally, cookie-based authentication may fail due to cross-origin restrictions. Always use `http://localhost:3001` for local development.
+
 ## Database
 
 The database schema is managed via Prisma in `packages/db/prisma/schema.prisma`.
