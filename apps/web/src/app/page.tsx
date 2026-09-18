@@ -67,7 +67,7 @@ function Hero() {
       <div
         aria-hidden
         className="gv-zoom absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url('/assets/hero-pixel.png')", imageRendering: "pixelated" }}
+        style={{ backgroundImage: "url('/assets/hero-pixel.jpg')", imageRendering: "pixelated" }}
       />
 
       <div className="relative mx-auto grid w-full max-w-[1200px] items-center gap-10 px-6 pt-24 lg:grid-cols-[minmax(0,560px)_1fr]">
@@ -84,11 +84,10 @@ function Hero() {
             ))}
           </h1>
           <p
-            className="gv-pop mt-6 max-w-lg text-base leading-7 text-[#1c3a32]"
+            className="gv-pop mt-6 max-w-lg text-base leading-7 text-white"
             style={{ animationDelay: "0.55s" }}
           >
-            Start with an AI readiness roadmap, then hand off crawling, structure,
-            accessibility, schema, and scoring to agents.
+           
           </p>
           <div className="gv-pop mt-8 flex flex-wrap gap-3" style={{ animationDelay: "0.7s" }}>
             <Link

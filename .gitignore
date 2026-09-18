@@ -45,3 +45,9 @@ temporal-data
 
 # Docker
 docker-compose.override.yml
+
+.vercel-deploy-tmp/
+.vercel-deploy-files.json
+.vercel/
+apps/web/.vercel/
+

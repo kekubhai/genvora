@@ -32,8 +32,14 @@ export default function DashboardPage() {
     try {
       const data = await listSites();
       setSites(data);
-    } catch {
+      setError(null);
+    } catch (err) {
       setSites([]);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not load sites — check API CORS / network",
+      );
     } finally {
       setLoadingSites(false);
     }
@@ -42,8 +48,11 @@ export default function DashboardPage() {
   useEffect(() => {
     void refreshSites();
     fetch(`${API_URL}/health`)
-      .then((r) => r.json())
-      .then((data: ApiHealth) => setHealth(data))
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`health ${r.status}`);
+        return r.json() as Promise<ApiHealth>;
+      })
+      .then((data) => setHealth(data))
       .catch(() => setHealth(null));
   }, [refreshSites]);
 
@@ -96,8 +105,8 @@ export default function DashboardPage() {
           <Link href="/" className="font-[family-name:var(--font-display)] text-xl tracking-tight">
             Genvora
           </Link>
-          <nav className="mt-10 space-y-1 text-sm">
-            <NavItem href="/dashboard" active>
+          <nav className="mt-10 space-y-1 text-sm font-black">
+            <NavItem   href="/dashboard" active>
               Overview
             </NavItem>
             <NavItem href="/dashboard#pipeline">Pipeline</NavItem>
@@ -288,8 +297,8 @@ function NavItem({
       className={cn(
         "block rounded-md px-3 py-2",
         active
-          ? "bg-[var(--gv-tint)] font-medium text-[var(--gv-accent-ink)]"
-          : "text-[var(--gv-muted)] hover:bg-[var(--gv-bg)] hover:text-[var(--gv-ink)]",
+          ? "bg-[var(--gv-tint)] font-medium text-black"
+          : "text-black hover:bg-[var(--gv-bg)] hover:text-[var(--gv-ink)]",
       )}
     >
       {children}

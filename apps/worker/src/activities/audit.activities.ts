@@ -75,7 +75,7 @@ export async function fetchPageActivity(url: string): Promise<PageFetchResult> {
       // and blows Temporal activity timeouts before scores can be persisted.
       const response = await page.goto(url, {
         waitUntil: "domcontentloaded",
-        timeout: 45_000,
+        timeout: 25_000,
       });
       if (response) {
         finalUrl = response.url();
@@ -107,27 +107,34 @@ export async function fetchPageActivity(url: string): Promise<PageFetchResult> {
       span.setAttribute("screenshot.bytes", 0);
       span.setAttribute("screenshot.skipped", true);
 
-      // Try to fetch robots.txt
+      // Lightweight side fetches — do NOT navigate the main page (can hang 30s+)
       try {
         const robotsUrl = new URL("/robots.txt", finalUrl).toString();
-        const robotsResponse = await page.goto(robotsUrl);
-        if (robotsResponse && robotsResponse.ok()) {
+        const robotsResponse = await page.request.get(robotsUrl, {
+          timeout: 8_000,
+        });
+        if (robotsResponse.ok()) {
           robotsTxt = await robotsResponse.text();
           span.setAttribute("robots_txt.found", true);
           span.setAttribute("robots_txt.bytes", robotsTxt.length);
+        } else {
+          span.setAttribute("robots_txt.found", false);
         }
       } catch {
         span.setAttribute("robots_txt.found", false);
       }
 
-      // Try to fetch llms.txt
       try {
         const llmsUrl = new URL("/llms.txt", finalUrl).toString();
-        const llmsResponse = await page.goto(llmsUrl);
-        if (llmsResponse && llmsResponse.ok()) {
+        const llmsResponse = await page.request.get(llmsUrl, {
+          timeout: 8_000,
+        });
+        if (llmsResponse.ok()) {
           llmsTxt = await llmsResponse.text();
           span.setAttribute("llms_txt.found", true);
           span.setAttribute("llms_txt.bytes", llmsTxt.length);
+        } else {
+          span.setAttribute("llms_txt.found", false);
         }
       } catch {
         span.setAttribute("llms_txt.found", false);
